@@ -3,7 +3,7 @@ import { BarChart3, Package, Map } from 'lucide-react';
 
 export default function AssetHubLanding() {
   return (
-    <div className="min-h-screen bg-[#020617] text-slate-200 selection:bg-blue-500/30">
+    <div className="min-h-screen bg-[#020617] text-slate-200 selection:bg-blue-500/30 mt-35">
       {/* Hero Section */}
       <section className="relative px-6 pt-24 pb-20 md:pt-32 md:pb-32 overflow-hidden">
         {/* Background Glow */}
@@ -28,7 +28,7 @@ export default function AssetHubLanding() {
       </section>
 
       {/* Feature Grid */}
-      <section className="px-6 py-20 bg-slate-950/50 border-y border-slate-900">
+      <section className="px-6 py-20 bg-slate-950/50 border-y border-slate-900 ">
         <div className="max-w-6xl mx-auto">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {[
