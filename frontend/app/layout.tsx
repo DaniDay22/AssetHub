@@ -18,37 +18,35 @@ export default function RootLayout({
   return (
     <html lang="en" >
       <body >
-        <header className="px-6 py-12 border-t border-slate-900 text-center fixed top-0 left-0 right-0 z-50">
-          
-            <nav className="flex h-16 items-center justify-between px-4 bg-slate-900 text-white fixed top-0 left-0 right-0">
-              <div className="flex space-x-4 items-center">
-                <Image src="/AssetHub-logo.png" alt="AssetHub Logo" className="w-auto" 
-                width={40}
-                height={20} 
-                />
-                <p className="font-bold tracking-tight">AssetHub</p>
-              </div>
+        <header className="fixed top-0 left-0 right-0 z-50 bg-slate-900 border-b border-slate-800">
+          <nav className="max-w-7xl mx-auto px-6 h-24 grid grid-cols-3 items-center">
 
-              <div className="flex space-x-4">
-                <button className="hover:text-gray-300 font-bold tracking-tight bg-transparent border border-slate-500 rounded-md px-5 py-1">
-                  <Link href="/" className="hover:text-gray-300 font-bold tracking-tight">
-                    Home
-                  </Link>
-                </button>
-                <button className="hover:text-gray-300 font-bold tracking-tight bg-transparent border border-slate-500 rounded-md px-5 py-1">
-                  <Link href="/about" className="hover:text-gray-300 font-bold tracking-tight">
-                    About
-                  </Link>
-                </button>
-                
-                <button className="hover:text-gray-300 font-bold tracking-tight bg-transparent border border-slate-500 rounded-md px-5 py-1">
-                  <Link href="/login" className="hover:text-gray-300 font-bold tracking-tight ">
-                    Login
-                  </Link>
-                </button>
-                
-              </div>
-            </nav>
+            <div className="flex justify-start">
+              <Link href="/" className="hover:text-gray-300 font-bold tracking-tight border border-slate-500 rounded-md px-5 py-1">
+                Home
+              </Link>
+            </div>
+
+            <div className="flex flex-col items-center justify-center space-y-1">
+              <Image 
+                src="/AssetHub-logo.png" 
+                alt="AssetHub Logo" 
+                width={40} 
+                height={40} 
+              />
+              <span className="font-bold tracking-tight text-sm uppercase">AssetHub</span>
+            </div>
+
+            <div className="flex justify-end space-x-4">
+              <Link href="/login" className="hover:text-gray-300 font-bold tracking-tight border border-slate-500 rounded-md px-5 py-1">
+                Login
+              </Link>
+              <Link href="/register" className="hover:text-gray-300 font-bold tracking-tight border border-slate-500 rounded-md px-5 py-1">
+                Register
+              </Link>
+            </div>
+
+          </nav>
         </header>
         
           {children}
@@ -56,21 +54,28 @@ export default function RootLayout({
 
         <footer className="px-6 py-12 border-t border-slate-900 text-center">
         <div className="flex items-center justify-center gap-2 mb-4">
-          <Image src="/AssetHub-logo.png" alt="AssetHub Logo" className="text-blue-500" 
+          <Image src="/AssetHub-logo.png" alt="AssetHub Logo" className=" w-auto m-auto" 
                 width={30}
                 height={24} 
           />
-          <span className="text-xl font-bold text-white tracking-tight">AssetHub</span>
+          
         </div>
+        
+        <span className="text-xl font-bold text-white tracking-tight">AssetHub</span>
         <p className="text-slate-500 text-sm mb-2">
           &copy; 2026 AssetHub Systems Inc. Built for the future of retail.
         </p>
-        <div className="flex items-center justify-center gap-2 mb-4">
+        <div className="flex items-center justify-center gap-2 mb-2">
             <Link href="#" className="text-slate-500 text-sm mb-2 hover:text-gray-400">
               Privacy Policy
             </Link>
             <Link href="#" className="text-slate-500 text-sm mb-2 hover:text-gray-400">
               Terms of Service
+            </Link>  
+          </div>
+          <div>
+            <Link href="/about" className="text-slate-500 text-sm mb-2 hover:text-gray-400">
+              About
             </Link>
           </div>
       </footer>
