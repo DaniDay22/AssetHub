@@ -26,7 +26,6 @@ export default function RootLayout({
                 width={40}
                 height={20} 
                 />
-                <p className="font-bold tracking-tight">AssetHub</p>
               </div>
 
               <div className="flex space-x-4">
