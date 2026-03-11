@@ -36,9 +36,7 @@ export default function RootLayout({
                   </Link>
                 </button>
                 <button className="hover:text-gray-300 font-bold tracking-tight bg-transparent border border-slate-500 rounded-md px-5 py-1">
-                  <Link href="/about" className="hover:text-gray-300 font-bold tracking-tight">
-                    About
-                  </Link>
+                  
                 </button>
                 
                 <button className="hover:text-gray-300 font-bold tracking-tight bg-transparent border border-slate-500 rounded-md px-5 py-1">
@@ -65,12 +63,17 @@ export default function RootLayout({
         <p className="text-slate-500 text-sm mb-2">
           &copy; 2026 AssetHub Systems Inc. Built for the future of retail.
         </p>
-        <div className="flex items-center justify-center gap-2 mb-4">
+        <div className="flex items-center justify-center gap-2 mb-2">
             <Link href="#" className="text-slate-500 text-sm mb-2 hover:text-gray-400">
               Privacy Policy
             </Link>
             <Link href="#" className="text-slate-500 text-sm mb-2 hover:text-gray-400">
               Terms of Service
+            </Link>  
+          </div>
+          <div>
+            <Link href="/about" className="text-slate-500 text-sm mb-2 hover:text-gray-400">
+              About
             </Link>
           </div>
       </footer>

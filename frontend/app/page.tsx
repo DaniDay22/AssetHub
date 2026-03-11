@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box, BarChart3, Package, Map, ArrowRight } from 'lucide-react';
+import { BarChart3, Package, Map } from 'lucide-react';
 
 export default function AssetHubLanding() {
   return (
