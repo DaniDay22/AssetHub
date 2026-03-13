@@ -24,7 +24,7 @@ const authenticationToken = (req, res, next) => {
             return res.status(403).json({success: false, error: "Érvénytelen vagy lejárt token!"})
 
         //Ha minden oké, akkor adjuk át a dekódolt adatokat és mehet tovább
-        res.user = decoded
+        req.user = decoded
         next()
     })
 }
@@ -36,7 +36,7 @@ router.post('/Register/Manager', async (req, res) => {
         const {name, password, email, phone, dob, storeName, storeAddress} = req.body
         const emailFormatted = email.toLowerCase().trim()
 
-        const pool = await sql.connect(config)
+        const pool = await mssql.connect(config)
 
         //Kikeressük a fiókot, hogy létezik-e
         const accountExists = await pool.request()
@@ -103,7 +103,7 @@ router.post('/Register/Employee', async (req, res) => {
         const {name, email, phone, dob, salary, authName, creatorId} = req.body
         const emailFormatted = email.toLowerCase().trim()
 
-        const pool = await sql.connect(config)
+        const pool = await mssql.connect(config)
 
         const exists = await pool.request()
             .input('Email', mssql.NVarChar, emailFormatted)
@@ -153,51 +153,43 @@ router.post('/Register/Employee', async (req, res) => {
 
 //Belépés a fiókban
 router.post('/Login', async (req, res) => {
-    try{
-        const {email, password} = req.body
-        const emailFormatted = email.toLowerCase().trim()
+    try {
+        const { email, password } = req.body;
+        const pool = await mssql.connect(config);
 
-        const pool = await sql.connect(config)
+        const result = await pool.request()
+            .input('Email', mssql.NVarChar, email.toLowerCase().trim())
+            .query(`SELECT TOP 1 Id, Email, Password, AuthLv FROM Employee WHERE Email = @Email`);
 
-        const user = await pool.request()
-            .input('Email', mssql.NVarChar, emailFormatted)
-            .query(`SELECT TOP 1 Email, Password, AuthLv, FirstLogin FROM Employee
-                WHERE Email = @Email AND IsActive = 1`).recordset
-        
-        const storedPass = user.Password.toString()
-        const matches = await bcrypt.compare(password, storedPass);
+        const user = result.recordset[0]; // recordset[0] kell, nem a teljes tömb
 
-        if(user && matches){
-            const tokenInfo = {
-                UserId: user.Id,
-                AuthLv: user.AuthLv,
-                Email: user.Email
-            }
-
-            const token = jwt.sign(tokenInfo, jwt_secretKey, {expiresIn: '2h'})
-
-            res.status(200).json({
-                success: true,
-                message: "Sikeres bejelentkezés!",
-                token: token,
-                user: {
-                    Id: user.Id,
+        if (user) {
+            //const storedPass = user.Password.toString('hex').toLowerCase(); // Teszteléshez egyszerűsített konverzió            
+            const matches = await bcrypt.compare(password, storedPass);
+            /*
+            Teszteléshez részletes debug logok a jelszó ellenőrzéshez
+            console.log("--- DEBUG LOGIN ---");
+            console.log("Amit beírtál (password):", password);
+            console.log("Típusa:", typeof password);
+            console.log("DB Buffer (raw):", user.Password);
+            console.log("DB Hex stringként:", user.Password.toString('hex'));
+            console.log("DB UTF8 stringként:", user.Password.toString('utf-8'));
+            */
+            if (/*storedPass === password*/matches) { // Egyszerűsített ellenőrzés, csak teszteléshez!
+                const token = jwt.sign({
+                    UserId: user.Id, // Figyelj, hogy UserId vagy Id a kulcs!
                     AuthLv: user.AuthLv,
-                    FirstLogin: user.FirstLogin
-                }
-            })
+                    Email: user.Email
+                }, jwt_secretKey, { expiresIn: '2h' });
+
+                return res.status(200).json({ success: true, token, user });
+            }
         }
-        else{
-            res.status(401).json({success: false, error: "Hibás email vagy jelszó!"})
-        }
+        res.status(401).json({ success: false, error: "Hibás adatok!" });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
     }
-    catch(err){
-        res.status(500).json({success: false, error: "Szerver hiba történt!"})
-    }
-    finally{
-        if (pool) await pool.close()
-    }
-})
+});
 
 //Jelszó változtatás fiókokra
 router.patch('/UpdatePassword', authenticationToken, async (req, res) => {
@@ -208,7 +200,7 @@ router.patch('/UpdatePassword', authenticationToken, async (req, res) => {
         const hashedPass = await bcrypt.hash(newPassword, 10);
         const bufferedPass = Buffer.from(hashedPass);
 
-        const pool = await sql.connect(config)
+        const pool = await mssql.connect(config)
 
         await pool.request()
             .input('Id', mssql.Int, userId)
@@ -236,7 +228,7 @@ router.delete('/', authenticationToken, async (req, res) => {
         const { email } = req.body
         const { authLv, email: managerEmail } = req.user
 
-        pool = await sql.connect(config)
+        const pool = await mssql.connect(config)
 
         const targetResult = await pool.request()
             .input('Email', mssql.NVarChar, email)
@@ -274,7 +266,6 @@ router.delete('/', authenticationToken, async (req, res) => {
 })
 
 router.patch('/Reactivate', authenticationToken, async (req, res) => {
-    let pool;
     try {
         const { email } = req.body;
         const { authLv, userId } = req.user;
@@ -284,7 +275,7 @@ router.patch('/Reactivate', authenticationToken, async (req, res) => {
             return res.status(403).json({ success: false, error: "Nincs jogosultságod fiókok visszaállítására!" });
         }
 
-        pool = await sql.connect(config);
+        const pool = await mssql.connect(config);
         
         // Visszaállítás, de csak a saját boltján belül!
         const result = await pool.request()
@@ -309,3 +300,4 @@ router.patch('/Reactivate', authenticationToken, async (req, res) => {
         if (pool) await pool.close();
     }
 });
+module.exports = router;
