@@ -14,5 +14,5 @@ const PORT = process.env.PORT || 5000
 
 app.listen(PORT, () => {
     console.log(`Backend fut: http://localhost:${PORT}`)
-    console.log(`API: http://localhost:${PORT}/api/Register/Manager`)
+    console.log(`API: http://localhost:${PORT}/api/Auth`)
 })
