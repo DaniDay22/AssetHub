@@ -1,3 +1,4 @@
+//Csomagokat behozzuk
 require('dotenv')
 const express = require('express')
 const mssql = require('mssql')
@@ -10,6 +11,7 @@ const jwt_secretKey = process.env.JWT_SECRET
 const router = express.Router()
 
 //JWT Middleware réteg
+//
 const authenticationToken = (req, res, next) => {
     const authHeader = req.headers['authorization']
     const token = authHeader && authHeader.split(' ')[1]
@@ -21,6 +23,7 @@ const authenticationToken = (req, res, next) => {
         if(err)
             return res.status(403).json({success: false, error: "Érvénytelen vagy lejárt token!"})
 
+        //Ha minden oké, akkor adjuk át a dekódolt adatokat és mehet tovább
         res.user = decoded
         next()
     })
@@ -35,21 +38,23 @@ router.post('/Register/Manager', async (req, res) => {
 
         const pool = await sql.connect(config)
 
+        //Kikeressük a fiókot, hogy létezik-e
         const accountExists = await pool.request()
             .input('Email', mssql.NVarChar, emailFormatted)
             .query(`SELECT TOP 1 Id FROM Employee
                 WHERE Email = @Email`)
 
+        //Kikeressük a boltot, hogy létezik-e
         const storeExists = await pool.request()
             .input('StoreName', mssql.NVarChar, storeName)
             .input('StoreAddress', mssql.NVarChar, storeAddress)
             .query(`SELECT TOP 1 Id FROM Store
                 WHERE Name = @StoreName AND Address = @StoreAddress`)
                 
-        if(accountExists.recordset.length > 0){
+        if(accountExists.recordset.length > 0){ //Ha van benne elem, az-az létezik
             res.status(400).json({success: false, error: "Ez az email már használatban van!"})
         }
-        else if(storeExists.recordset.length > 0){
+        else if(storeExists.recordset.length > 0){ //Ha van benne elem, az-az létezik
             res.status(400).json({success: false, error: "Ez a bolt már létezik!"})
         }
         else{
@@ -157,7 +162,7 @@ router.post('/Login', async (req, res) => {
         const user = await pool.request()
             .input('Email', mssql.NVarChar, emailFormatted)
             .query(`SELECT TOP 1 Email, Password, AuthLv, FirstLogin FROM Employee
-                WHERE Email = @Email`).recordset
+                WHERE Email = @Email AND IsActive = 1`).recordset
         
         const storedPass = user.Password.toString()
         const matches = await bcrypt.compare(password, storedPass);
@@ -194,42 +199,10 @@ router.post('/Login', async (req, res) => {
     }
 })
 
-//Ha első alkalommal lép be egy alkalmazott, ez a route szolgál a változtatásra.
-//NEM LEHET HASZNÁLNI ÁLTALÁNOS JELSZÓ VÁLTOZTATÁSRA!!
-router.patch('/FirstLogin', authenticationToken, async (req, res) => {
-    try{
-        const {newPassword} = req.body
-        const userId = req.user.Id
-
-        const hashedPass = await bcrypt.hash(newPassword, 10);
-        const bufferedPass = Buffer.from(hashedPass);
-
-        const pool = await sql.connect(config)
-
-        await pool.request()
-            .input('Id', mssql.Int, userId)
-            .input('NewPassword', mssql.VarBinary, bufferedPass)
-            .query(`
-                UPDATE Employee 
-                SET Password = @NewPassword, 
-                    FirstLogin = 0
-                WHERE Id = @Id
-            `)
-
-        res.status(200).json({success: true, message: "Jelszó módosítva!"})
-    }
-    catch(err){
-        res.status(500).json({success: false, error: "Szerver hiba történt!"})
-    }
-    finally{
-        if (pool) await pool.close()
-    }
-})
-
-//Általános jelszó változtatás fiókokra
+//Jelszó változtatás fiókokra
 router.patch('/UpdatePassword', authenticationToken, async (req, res) => {
     try{
-        const {newPassword} = req.body
+        const { newPassword } = req.body
         const userId = req.user.Id
 
         const hashedPass = await bcrypt.hash(newPassword, 10);
@@ -256,3 +229,83 @@ router.patch('/UpdatePassword', authenticationToken, async (req, res) => {
         if (pool) await pool.close()
     }
 })
+
+//
+router.delete('/', authenticationToken, async (req, res) => {
+    try {
+        const { email } = req.body
+        const { authLv, email: managerEmail } = req.user
+
+        pool = await sql.connect(config)
+
+        const targetResult = await pool.request()
+            .input('Email', mssql.NVarChar, email)
+            .query('SELECT Id, AuthLv, StoreId FROM Employee WHERE Email = @Email')
+
+        const target = targetResult.recordset[0]
+
+        if (!target) {
+            return res.status(404).json({success: false, error: "A keresett alkalmazott nem található!"})
+        }
+
+        const isSelfDelete = (email === managerEmail)
+        const isHigherRank = (authLv < target.AuthLv)
+
+        if (!isSelfDelete && !isHigherRank) {
+            return res.status(403).json({ 
+                success: false, 
+                error: "Nincs jogosultságod más menedzserek vagy felettesek törlésére!" 
+            })
+        }
+        await pool.request()
+            .input('Id', mssql.Int, target.Id)
+            .query('UPDATE Employee SET IsActive = 0 WHERE Id = @Id')
+
+        res.status(200).json({ 
+            success: true, 
+            message: isSelfDelete ? "Fiókod sikeresen deaktiválva." : "Alkalmazott deaktiválva." 
+        })
+
+    } catch (err) {
+        res.status(500).json({ success: false, error: "Szerver hiba történt!" });
+    } finally {
+        if (pool) await pool.close();
+    }
+})
+
+router.patch('/Reactivate', authenticationToken, async (req, res) => {
+    let pool;
+    try {
+        const { email } = req.body;
+        const { authLv, userId } = req.user;
+
+        // Csak Menedzser vagy Tulajdonos (AuthLv <= 3) hozhat vissza embert
+        if (authLv > 3) {
+            return res.status(403).json({ success: false, error: "Nincs jogosultságod fiókok visszaállítására!" });
+        }
+
+        pool = await sql.connect(config);
+        
+        // Visszaállítás, de csak a saját boltján belül!
+        const result = await pool.request()
+            .input('Email', mssql.NVarChar, email)
+            .input('ManagerId', mssql.Int, userId)
+            .query(`
+                UPDATE Employee 
+                SET IsActive = 1 
+                WHERE Email = @Email 
+                AND StoreId = (SELECT StoreId FROM Employee WHERE Id = @ManagerId)
+            `);
+
+        if (result.rowsAffected[0] === 0) {
+            return res.status(404).json({ success: false, error: "Nem található ilyen deaktivált alkalmazott a boltodban!" });
+        }
+
+        res.status(200).json({ success: true, message: "Fiók sikeresen újraaktiválva!" });
+
+    } catch (err) {
+        res.status(500).json({ success: false, error: "Hiba a visszaállítás során!" });
+    } finally {
+        if (pool) await pool.close();
+    }
+});
