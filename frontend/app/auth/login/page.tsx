@@ -1,30 +1,41 @@
 'use client';
 import { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { Lock, Mail, ArrowRight, ChevronLeft } from 'lucide-react';
+import { Lock, Mail, ArrowRight, ChevronLeft, Loader2 } from 'lucide-react';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
   const { login } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    setError(null);
+    setLoading(true);
     
-    const res = await fetch('http://localhost:4000/Login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }),
-    });
+    try {
+      const res = await fetch('http://localhost:5000/api/Auth/Login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
 
-    const data = await res.json();
+      const data = await res.json();
 
-    if (res.ok) {
-      // This calls the login function in your AuthContext 
-      // which saves the token to localStorage
-      login(data.token); 
-    } else {
-      alert(data.message);
+      if (res.ok && data.success) {
+        // We pass the token to your AuthContext
+        // Pro tip: You might also want to pass data.user if your Context stores user info
+        login(data.token); 
+      } else {
+        // Displays "Hibás adatok!" or whatever the server sends
+        setError(data.error || 'Login failed');
+      }
+    } catch (err) {
+      setError('Could not connect to the server.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -47,7 +58,17 @@ export default function LoginPage() {
 
       <div className="mt-10 sm:mx-auto sm:w-full sm:max-w-md">
         <div className="bg-slate-900/50 border border-slate-800 py-8 px-6 shadow-2xl rounded-2xl sm:px-10 backdrop-blur-sm">
-          <form className="space-y-6" onSubmit={(e) => e.preventDefault()}>
+          
+          {/* Form now calls handleSubmit */}
+          <form className="space-y-6" onSubmit={handleSubmit}>
+            
+            {/* Error Message Display */}
+            {error && (
+              <div className="bg-red-500/10 border border-red-500/50 text-red-400 px-4 py-2 rounded-lg text-sm">
+                {error}
+              </div>
+            )}
+
             <div>
               <label className="block text-sm font-medium text-slate-300">Email address</label>
               <div className="mt-2 relative">
@@ -94,17 +115,24 @@ export default function LoginPage() {
 
             <button
               type="submit"
-              className="w-full flex justify-center items-center py-3 px-4 rounded-xl text-white font-semibold bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 transition-all shadow-lg shadow-blue-500/20 group"
+              disabled={loading}
+              className="w-full flex justify-center items-center py-3 px-4 rounded-xl text-white font-semibold bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 transition-all shadow-lg shadow-blue-500/20 group disabled:opacity-70 disabled:cursor-not-allowed"
             >
-              Sign in
-              <ArrowRight className="ml-2 w-4 h-4 group-hover:translate-x-1 transition-transform" />
+              {loading ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : (
+                <>
+                  Sign in
+                  <ArrowRight className="ml-2 w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                </>
+              )}
             </button>
           </form>
 
           <div className="mt-8 text-center">
             <p className="text-sm text-slate-400">
               New to AssetHub?{' '}
-              <a href="/register" className="font-medium text-blue-400 hover:text-blue-300">
+              <a href="/auth/register" className="font-medium text-blue-400 hover:text-blue-300">
                 Create an account
               </a>
             </p>

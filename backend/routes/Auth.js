@@ -151,7 +151,7 @@ router.post('/Register/Employee', async (req, res) => {
     }
 })
 
-//Belépés a fiókban
+//Belépés a fiókba
 router.post('/Login', async (req, res) => {
     try {
         const { email, password } = req.body;
@@ -164,8 +164,8 @@ router.post('/Login', async (req, res) => {
         const user = result.recordset[0]; // recordset[0] kell, nem a teljes tömb
 
         if (user) {
-            //const storedPass = user.Password.toString('hex').toLowerCase(); // Teszteléshez egyszerűsített konverzió            
-            const matches = await bcrypt.compare(password, storedPass);
+            const storedPass = user.Password.toString('hex').toLowerCase(); // Teszteléshez egyszerűsített konverzió            
+            //const matches = await bcrypt.compare(password, storedPass);
             /*
             Teszteléshez részletes debug logok a jelszó ellenőrzéshez
             console.log("--- DEBUG LOGIN ---");
@@ -175,7 +175,7 @@ router.post('/Login', async (req, res) => {
             console.log("DB Hex stringként:", user.Password.toString('hex'));
             console.log("DB UTF8 stringként:", user.Password.toString('utf-8'));
             */
-            if (/*storedPass === password*/matches) { // Egyszerűsített ellenőrzés, csak teszteléshez!
+            if ( storedPass === password/*matches*/) { // Egyszerűsített ellenőrzés, csak teszteléshez!
                 const token = jwt.sign({
                     UserId: user.Id, // Figyelj, hogy UserId vagy Id a kulcs!
                     AuthLv: user.AuthLv,

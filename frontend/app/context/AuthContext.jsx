@@ -21,13 +21,13 @@ export const AuthProvider = ({ children }) => {
   const login = (token) => {
     localStorage.setItem('token', token);
     setUser({ token });
-    router.push('/dashboard'); // Next.js navigation
+    router.push('/dashboard/account'); // Next.js navigation
   };
 
   const logout = () => {
     localStorage.removeItem('token');
     setUser(null);
-    router.push('/login');
+    router.push('/'); 
   };
 
   return (

@@ -2,7 +2,7 @@
 import React from 'react';
 import { usePathname } from 'next/navigation'; // The GPS hook
 import Link from 'next/link';
-import { Users, Package, BarChart3, Map, LogOut } from 'lucide-react';
+import { Users, Package, BarChart3, Map, User } from 'lucide-react';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname(); // Tells us if we are at /employees, /products, etc.
@@ -12,6 +12,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { label: 'Products', icon: <Package size={20} />, href: '/dashboard/product' },
     { label: 'Sales Feed', icon: <BarChart3 size={20} />, href: '/dashboard/sales' },
     { label: 'Store Map', icon: <Map size={20} />, href: '/dashboard/map' },
+    { label: 'Account', icon: <User size={20} />, href: '/dashboard/account' },
   ];
 
   return (
