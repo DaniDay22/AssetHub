@@ -30,13 +30,14 @@ const { user, logout } = useAuth();
               />
               <span className="font-bold tracking-tight text-sm uppercase">AssetHub</span>
             </div>
-
+              
             <div className="flex justify-end space-x-4">
-              <Link href="/auth/login" className="hover:text-gray-300 font-bold tracking-tight border border-slate-500 rounded-md px-5 py-1">
-                Login
+              //A logout gomb megnyomásakor meghívjuk a logout függvényt, ami törli a tokent és frissíti az állapotot
+              <Link href="/auth/logout" className="hover:text-gray-300 font-bold tracking-tight border border-slate-500 rounded-md px-5 py-1">
+                Logout
               </Link>
-              <Link href="/auth/register" className="hover:text-gray-300 font-bold tracking-tight border border-slate-500 rounded-md px-5 py-1">
-                Register
+              <Link href="/account" className="hover:text-gray-300 font-bold tracking-tight border border-slate-500 rounded-md px-5 py-1">
+                Account
               </Link>
             </div>
             </>
