@@ -8,43 +8,43 @@ USE AssetHubDb
 GO
 
 -- 1. Tables with no dependencies
--- A térkép layout-ja
+-- A tï¿½rkï¿½p layout-ja
 CREATE TABLE Map (
-    Id INT PRIMARY KEY,
+    Id INT IDENTITY(1,1) PRIMARY KEY,
     Width SMALLINT,
     Height SMALLINT
 );
--- Autentikáció szintjei felhasználóknál
+-- Autentikï¿½ciï¿½ szintjei felhasznï¿½lï¿½knï¿½l
 CREATE TABLE AuthLevel (
     Id INT PRIMARY KEY,
     Position NVARCHAR(30),
     Description NVARCHAR(100)
 );
--- Termék kategóriák
+-- Termï¿½k kategï¿½riï¿½k
 CREATE TABLE ProductCategory (
-    Id INT PRIMARY KEY,
+    Id INT IDENTITY(1,1) PRIMARY KEY,
     Name NVARCHAR(30)
 );
--- Bútorok a térképen
+-- Bï¿½torok a tï¿½rkï¿½pen
 CREATE TABLE Furniture (
-    Id INT PRIMARY KEY,
+    Id INT IDENTITY(1,1) PRIMARY KEY,
     Name NVARCHAR(50),
     Width SMALLINT,
     Height SMALLINT
 );
 
 -- 2. Tables with single-level dependencies
--- A fõ tábla 
+-- A fï¿½ tï¿½bla 
 CREATE TABLE Store (
-    Id INT PRIMARY KEY,
+    Id INT IDENTITY(1,1) PRIMARY KEY,
     MapId INT,
     Name NVARCHAR(100),
     Address NVARCHAR(100),
     FOREIGN KEY (MapId) REFERENCES Map(Id)
 );
--- termékek
+-- termï¿½kek
 CREATE TABLE Product (
-    Id INT PRIMARY KEY,
+    Id INT IDENTITY(1,1) PRIMARY KEY,
     CategoryId INT,
     Name NVARCHAR(200),
     Brand NVARCHAR(50),
@@ -53,9 +53,9 @@ CREATE TABLE Product (
 );
 
 -- 3. Tables depending on Store and Product
--- alkalmazottak listája és a bejelentkezési adataik
+-- alkalmazottak listï¿½ja ï¿½s a bejelentkezï¿½si adataik
 CREATE TABLE Employee (
-    Id INT PRIMARY KEY,
+    Id INT IDENTITY(1,1) PRIMARY KEY,
     StoreId INT,
     AuthLv INT,
     Password VARBINARY(255),
@@ -68,9 +68,9 @@ CREATE TABLE Employee (
     FOREIGN KEY (StoreId) REFERENCES Store(Id),
     FOREIGN KEY (AuthLv) REFERENCES AuthLevel(Id)
 );
--- raktárban lévõ készlet és eladásaik 
+-- raktï¿½rban lï¿½vï¿½ kï¿½szlet ï¿½s eladï¿½saik 
 CREATE TABLE StoreInventory (
-    Id INT PRIMARY KEY,
+    Id INT IDENTITY(1,1) PRIMARY KEY,
     StoreId INT,
     ProductId INT,
     Price INT,
@@ -83,9 +83,9 @@ CREATE TABLE StoreInventory (
 );
 
 -- 4. Map and Furniture placement
--- a térképen lévõ bútorok elhelyeszkedése
+-- a tï¿½rkï¿½pen lï¿½vï¿½ bï¿½torok elhelyeszkedï¿½se
 CREATE TABLE MapContent (
-    Id INT PRIMARY KEY,
+    Id INT IDENTITY(1,1) PRIMARY KEY,
     MapId INT,
     FurnitureId INT,
     CoordX INT,
@@ -95,9 +95,9 @@ CREATE TABLE MapContent (
 );
 
 -- 5. Final transactional and content tables
--- eladások
+-- eladï¿½sok
 CREATE TABLE Sales (
-    Id INT PRIMARY KEY,
+    Id INT IDENTITY(1,1) PRIMARY KEY,
     InventoryId INT,
     EmployeeId INT,
     PaymentMethod NVARCHAR(20),
@@ -107,9 +107,9 @@ CREATE TABLE Sales (
     FOREIGN KEY (InventoryId) REFERENCES StoreInventory(Id),
     FOREIGN KEY (EmployeeId) REFERENCES Employee(Id)
 );
--- bútorok tartalma
+-- bï¿½torok tartalma
 CREATE TABLE FurnitureContent (
-    Id INT PRIMARY KEY,
+    Id INT IDENTITY(1,1) PRIMARY KEY,
     MapContentId INT,
     StoreInvId INT,
     FOREIGN KEY (MapContentId) REFERENCES MapContent(Id),
