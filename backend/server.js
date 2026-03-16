@@ -10,9 +10,12 @@ app.use(express.json())
 const AuthRoute = require('./routes/Auth')
 app.use('/api/Auth', AuthRoute)
 
+const SalesRoute = require('./routes/Sales')
+app.use('/api/Sales', SalesRoute)
+
 const PORT = process.env.PORT || 5000
 
 app.listen(PORT, () => {
     console.log(`Backend fut: http://localhost:${PORT}`)
-    console.log(`API: http://localhost:${PORT}/api/Auth`)
+    console.log(`API: http://localhost:${PORT}/api`)
 })
