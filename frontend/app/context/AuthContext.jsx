@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { jwtDecode } from 'jwt-decode';
 
 const AuthContext = createContext();
 
@@ -19,12 +20,21 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const login = (token) => {
+    document.cookie = `token=${token}; path=/; max-age=${60 * 60 * 2}; SameSite=Lax`;
     localStorage.setItem('token', token);
-    setUser({ token });
+
+    try {
+      const decoded = jwtDecode(token);
+      setUser({ token });
+    } catch (error) {
+      console.error('Invalid token:', error);
+    }
+    
     router.push('/dashboard'); // Next.js navigation
   };
 
   const logout = () => {
+    document.cookie = 'token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax';
     localStorage.removeItem('token');
     setUser(null);
     router.push('/auth/login'); // Next.js navigation

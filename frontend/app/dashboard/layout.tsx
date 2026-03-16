@@ -1,51 +1,64 @@
 'use client';
 import React from 'react';
-import { usePathname } from 'next/navigation'; // The GPS hook
+import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { Users, Package, BarChart3, Map, User } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname(); // Tells us if we are at /employees, /products, etc.
+  const pathname = usePathname();
+  const { user } = useAuth(); 
 
   const navItems = [
-    { label: 'Employees', icon: <Users size={20} />, href: '/dashboard/employees' },
-    { label: 'Products', icon: <Package size={20} />, href: '/dashboard/product' },
-    { label: 'Sales Feed', icon: <BarChart3 size={20} />, href: '/dashboard/sales' },
-    { label: 'Store Map', icon: <Map size={20} />, href: '/dashboard/map' },
-    { label: 'Account', icon: <User size={20} />, href: '/dashboard/account' },
+    { label: 'Employees', icon: <Users size={24} />, href: '/dashboard/employees', roles: [1, 2] }, 
+    { label: 'Products', icon: <Package size={24} />, href: '/dashboard/product', roles: [1, 2, 3] },
+    { label: 'Sales Feed', icon: <BarChart3 size={24} />, href: '/dashboard/sales', roles: [1, 2, 3] },
+    { label: 'Store Map', icon: <Map size={24} />, href: '/dashboard/map', roles: [1, 2, 3] },
+    { label: 'Account', icon: <User size={24} />, href: '/dashboard/account', roles: [1, 2, 3] },
   ];
 
+  const visibleItems = navItems.filter(item => {
+    // If there is no user, or the token is missing AuthLv, show the item to be safe
+    if (!user || !user.AuthLv) return true; 
+    
+    // Convert the user's AuthLv to a number before checking
+    return item.roles.includes(Number(user.AuthLv)); 
+  });
+
   return (
-    <div className="flex min-h-screen bg-[#020617]">
+    // "flex-row" forces left-to-right layout. "h-full" ensures it fills the screen.
+    <div className="flex-1 flex flex-row h-full w-full bg-[#020617] overflow-hidden font-sans">
+      
       {/* SIDEBAR */}
-      <aside className="w-72 border-r border-slate-800 flex flex-col fixed h-full bg-[#020617]">
-        <div className="p-8 text-2xl font-bold text-white italic">AssetHub</div>
+      <aside className="w-72 border-r border-slate-800 flex flex-col h-[calc(100vh-96px)] bg-[#020617] shrink-0 relative z-20">
         
-        <nav className="flex-1 px-4 space-y-2">
-          {navItems.map((item) => {
-            const isActive = pathname === item.href; // Automatic active state!
+        
+        <nav className="flex-1 px-4  mt-8 flex flex-col space-y-2">
+          {visibleItems.map((item) => {
+            const isActive = pathname === item.href;
             return (
               <Link
                 key={item.href}
                 href={item.href}
-                className={`mt-2 flex items-center space-x-4 px-4 py-3.5 rounded-2xl transition-all ${
-                  isActive ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20' : 'text-slate-400 hover:bg-slate-900'
+                className={`flex items-center space-x-4 px-4 py-3.5 rounded-2xl transition-all ${
+                  isActive 
+                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20' 
+                    : 'text-slate-400 hover:bg-slate-900 hover:text-slate-200'
                 }`}
               >
                 {item.icon}
-                <span className="font-semibold">{item.label}</span>
+                <span className="text-base font-semibold">{item.label}</span>
               </Link>
             );
           })}
         </nav>
-
-        
       </aside>
 
       {/* PAGE CONTENT */}
-      <main className="flex-1 ml-72 p-10">
+      <main className="flex-1 flex flex-col h-[calc(100vh-96px)] relative overflow-y-auto bg-[#020617]">
         {children}
       </main>
+      
     </div>
   );
 }

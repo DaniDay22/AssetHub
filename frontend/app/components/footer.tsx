@@ -1,11 +1,17 @@
-
+'use client';
+import { usePathname } from 'next/dist/client/components/navigation';
 import Image from 'next/image';
 import Link from 'next/link'; 
 
 export default function Footer(){
+  const pathname = usePathname();
 
+  // If the URL starts with /dashboard, return null (don't render the footer)
+  if (pathname?.startsWith('/dashboard')) {
+    return null;
+  }
   return (
-    <footer className="px-6 py-12 border-t border-slate-900 text-center">
+    <footer className="mt-auto px-6 py-8 border-t border-slate-900 text-center bg-[#020617]">
         <div className="flex items-center justify-center gap-2 mb-4">
           <Image src="/AssetHub-logo.png" alt="AssetHub Logo" className=" w-auto m-auto" 
                 width={30}

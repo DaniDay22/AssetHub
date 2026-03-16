@@ -28,6 +28,7 @@ export default function LoginPage() {
         // We pass the token to your AuthContext
         // Pro tip: You might also want to pass data.user if your Context stores user info
         login(data.token); 
+        document.cookie = `token=${data.token}; path=/; max-age=${60 * 60 * 2}; SameSite=Lax`;
       } else {
         // Displays "Hibás adatok!" or whatever the server sends
         setError(data.error || 'Login failed');
