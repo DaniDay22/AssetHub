@@ -14,7 +14,8 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (token) {
-      setUser({ token });
+      const decoded = jwtDecode(token);
+      setUser( decoded );
     }
     setLoading(false);
   }, []);
@@ -25,7 +26,7 @@ export const AuthProvider = ({ children }) => {
 
     try {
       const decoded = jwtDecode(token);
-      setUser({ token });
+      setUser({ decoded });
     } catch (error) {
       console.error('Invalid token:', error);
     }
@@ -46,5 +47,4 @@ export const AuthProvider = ({ children }) => {
     </AuthContext.Provider>
   );
 };
-
 export const useAuth = () => useContext(AuthContext);

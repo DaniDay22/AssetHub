@@ -159,7 +159,7 @@ router.post('/Login', async (req, res) => {
 
         const result = await pool.request()
             .input('Email', mssql.NVarChar, email.toLowerCase().trim())
-            .query(`SELECT TOP 1 Id, Email, Password, AuthLv FROM Employee WHERE Email = @Email`);
+            .query(`SELECT TOP 1 Id, Name, Email, Password, AuthLv FROM Employee WHERE Email = @Email`);
 
         const user = result.recordset[0]; // recordset[0] kell, nem a teljes tömb
 
@@ -168,7 +168,7 @@ router.post('/Login', async (req, res) => {
             //const storedPass = user.Password.toString('hex').toLowerCase(); // Teszteléshez egyszerűsített konverzió            
             const matches = await bcrypt.compare(password, storedPass);
             /*
-            Teszteléshez részletes debug logok a jelszó ellenőrzéshez
+            //Teszteléshez részletes debug logok a jelszó ellenőrzéshez
             console.log("--- DEBUG LOGIN ---");
             console.log("Amit beírtál (password):", password);
             console.log("Típusa:", typeof password);
@@ -176,11 +176,13 @@ router.post('/Login', async (req, res) => {
             console.log("DB Hex stringként:", user.Password.toString('hex'));
             console.log("DB UTF8 stringként:", user.Password.toString('utf-8'));
             */
+            
             if ( matches/*storedPass === password*/) { // Egyszerűsített ellenőrzés, csak teszteléshez!
                 const token = jwt.sign({
                     UserId: user.Id, // Figyelj, hogy UserId vagy Id a kulcs!
                     AuthLv: user.AuthLv,
-                    Email: user.Email
+                    Email: user.Email,
+                    Name: user.Name
                 }, jwt_secretKey, { expiresIn: '2h' });
 
                 return res.status(200).json({ success: true, token, user });
@@ -194,34 +196,62 @@ router.post('/Login', async (req, res) => {
 
 //Jelszó változtatás fiókokra
 router.patch('/UpdatePassword', authenticationToken, async (req, res) => {
-    try{
-        const { newPassword } = req.body
-        const userId = req.user.Id
+    try {
+        // 1. Grab BOTH passwords from the frontend request
+        const { currentPassword, newPassword } = req.body;
+        
+        // 2. Extract the ID securely from your JWT middleware
+        // (Note: Check if your token payload uses 'Id' or 'UserId')
+        const userId = req.user.Id || req.user.UserId; 
 
+        if (!currentPassword || !newPassword) {
+            return res.status(400).json({ success: false, error: "Kérlek add meg a jelenlegi és az új jelszót is!" });
+        }
+
+        pool = await mssql.connect(config);
+
+        // 3. Get the user's current hashed password from the database
+        const userRes = await pool.request()
+            .input('Id', mssql.Int, userId)
+            .query(`SELECT Password FROM Employee WHERE Id = @Id`);
+
+        if (userRes.recordset.length === 0) {
+            return res.status(404).json({ success: false, error: "Felhasználó nem található!" });
+        }
+
+        const user = userRes.recordset[0];
+
+        // 4. Compare the typed 'currentPassword' with the one in the database
+        const storedPass = user.Password.toString('utf-8');
+        const isMatch = await bcrypt.compare(currentPassword, storedPass);
+
+        if (!isMatch) {
+            return res.status(401).json({ success: false, error: "A jelenlegi jelszó helytelen." });
+        }
+
+        // 5. If it matches, hash the NEW password and convert it to a Buffer
         const hashedPass = await bcrypt.hash(newPassword, 10);
         const bufferedPass = Buffer.from(hashedPass);
 
-        const pool = await mssql.connect(config)
-
+        // 6. Save the new password to the database
         await pool.request()
             .input('Id', mssql.Int, userId)
             .input('NewPassword', mssql.VarBinary, bufferedPass)
             .query(`
                 UPDATE Employee 
-                SET Password = @NewPassword,
-                    FirstLogin = CASE WHEN FirstLogin = 1 THEN 0 ELSE FirstLogin END
+                SET Password = @NewPassword
                 WHERE Id = @Id
-            `)
+            `);
 
-        res.status(200).json({success: true, message: "Jelszó módosítva!"})
+        res.status(200).json({ success: true, message: "Jelszó sikeresen módosítva!" });
+        
+    } catch (err) {
+        console.error("Password Update Error:", err);
+        res.status(500).json({ success: false, error: "Szerver hiba történt!" });
+    } finally {
+        if (pool) await pool.close();
     }
-    catch(err){
-        res.status(500).json({success: false, error: "Szerver hiba történt!"})
-    }
-    finally{
-        if (pool) await pool.close()
-    }
-})
+});
 
 //
 router.delete('/', authenticationToken, async (req, res) => {
