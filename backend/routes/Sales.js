@@ -2,7 +2,6 @@
 const express = require('express')
 const mssql = require('mssql')
 const config = require('../config')
-const bcrypt = require('bcrypt')
 const jwt = require('jsonwebtoken')
 
 const jwt_secretKey = process.env.JWT_SECRET
