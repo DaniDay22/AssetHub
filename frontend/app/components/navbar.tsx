@@ -9,7 +9,7 @@ const { user, logout } = useAuth();
 
   return (
     
-        <header className="fixed top-0 left-0 right-0 z-50 bg-slate-900 border-b border-slate-800">
+        <header className="fixed top-0 left-0 right-0 z-50 bg-slate-900 border-b border-slate-800 text-white">
           <nav className="max-w-7xl mx-auto px-6 h-24 grid grid-cols-3 items-center">
 
             {user ? (
