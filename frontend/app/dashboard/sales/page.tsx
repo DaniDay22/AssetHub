@@ -1,6 +1,6 @@
 'use client';
 import React, { useState, useEffect } from 'react';
-import { Search, Plus, CreditCard, Banknote, Clock, User, X, Loader2 } from 'lucide-react';
+import { Search, Plus, CreditCard, Banknote, Clock, User, X, Loader2, Trash2 } from 'lucide-react';
 
 export default function SalesFeedPage() {
   const [sales, setSales] = useState<any[]>([]);
@@ -66,6 +66,26 @@ export default function SalesFeedPage() {
     }
   }, [isModalOpen]);
 
+const handleDeleteSale = async (saleId: number) => {
+    if (!window.confirm("Biztosan törlöd ezt az eladást? A termékek visszakerülnek a raktárba.")) return;
+    
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`http://localhost:5000/api/Sales/${saleId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const json = await res.json();
+      if (json.success) {
+        window.location.reload();
+      } else {
+        alert(json.error);
+      }
+    } catch (err) {
+      alert("Failed to delete.");
+    }
+  };
+
 // 1. THE BULLETPROOF SEARCH FILTER
   const filteredSales = sales.filter(sale => {
     // Safely grab the text, or use an empty string if it's NULL in the database
@@ -115,30 +135,26 @@ const handleCreateSale = async (e: React.FormEvent) => {
       {/* Header & Search Bar Area */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
         
-
-        {/* Search Bar AND New Sale Button grouped together */}
         <div className="flex items-center gap-4 w-full md:w-auto">
-          <div className="relative w-full md:w-80">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 w-5 h-5" />
-            <input
-              type="text"
-              placeholder="Search sales..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full bg-slate-900/50 border border-slate-800 rounded-xl py-2.5 pl-10 pr-4 text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
-            />
-          </div>
-          
-          {/* The MOVED Button */}
-          <button 
-            onClick={() => setIsModalOpen(true)}
-            className="flex items-center justify-center bg-blue-600 hover:bg-blue-500 text-white rounded-xl px-4 py-2.5 font-medium transition-colors whitespace-nowrap"
-          >
-            <Plus className="w-5 h-5 mr-2" />
-            
-          </button>
-        </div>
-      </div>
+                  <div className="flex items-center bg-slate-900/50 border border-slate-800 rounded-xl px-4 w-full md:w-80 focus-within:ring-2 focus-within:ring-blue-500/50 transition-all">
+                    <Search className="text-slate-500 w-5 h-5 shrink-0 mr-3" />
+                    <input
+                      type="text"
+                      placeholder="Search by name or email..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="w-full bg-transparent py-2.5 text-white placeholder:text-slate-500 focus:outline-none"
+                    />
+                  </div>
+                  <button 
+                    onClick={() => setIsModalOpen(true)}
+                    className="flex items-center justify-center bg-blue-600 hover:bg-blue-500 text-white rounded-xl px-4 py-2.5 font-medium transition-colors whitespace-nowrap"
+                  >
+                    <Plus className="w-6 h-6" />
+                  </button>
+                </div>
+              </div>
+        
 
       {/* Main Content Area (Unchanged) */}
       {loading ? (
@@ -159,8 +175,7 @@ const handleCreateSale = async (e: React.FormEvent) => {
             </div>
           ) : (
             filteredSales.map((sale, index) => (
-              <div key={index} className="bg-slate-900/40 border border-slate-800 rounded-2xl p-5 hover:border-slate-700 transition-colors group">
-                {/* ... existing card UI ... */}
+              <div key={index} className="bg-slate-900/40 border border-slate-800 rounded-2xl p-5 hover:border-slate-700 transition-colors group p-6">
                 <div className="flex justify-between items-start mb-4">
                   <div>
                     <span className="text-xs font-bold uppercase tracking-wider text-blue-400 mb-1 block">
@@ -171,9 +186,17 @@ const handleCreateSale = async (e: React.FormEvent) => {
                     </h3>
                   </div>
                   <div className="text-right">
-                    <span className="text-lg font-bold text-emerald-400 block">${sale.PriceAtSale}</span>
+                    <span className="text-lg font-bold text-emerald-400 block">{sale.PriceAtSale} Ft</span>
                     <span className="text-xs text-slate-500">Qty: {sale.Quantity}</span>
                   </div>
+                  <button 
+                        onClick={() => handleDeleteSale(sale.Id)} 
+                        className="text-slate-500 hover:text-red-400 transition-colors"
+                        title="Void Sale"
+                      >
+
+                        <Trash2 className="w-5 h-5" />
+                      </button>
                 </div>
                 <div className="space-y-2 pt-4 border-t border-slate-800/50">
                   <div className="flex items-center text-sm text-slate-400">

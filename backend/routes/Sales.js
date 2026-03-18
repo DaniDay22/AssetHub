@@ -45,6 +45,7 @@ router.get('/History', authenticationToken, async (req, res) => {
             .input('UserId', mssql.Int, UserId)
             .query(`
                 SELECT 
+                    Sales.Id,
                     Sales.TimeSold, 
                     Sales.Quantity, 
                     Sales.PriceAtSale, 
@@ -141,6 +142,47 @@ router.post('/Add', authenticationToken, async (req, res) => {
             `);
 
         res.status(200).json({ success: true });
+    } catch (err) {
+        if (pool) await pool.request().query('ROLLBACK TRANSACTION').catch(() => {});
+        res.status(500).json({ success: false, error: err.message });
+    } finally {
+        if (pool) await pool.close();
+    }
+});
+
+// DELETE: Void a sale and return stock to inventory
+router.delete('/:id', authenticationToken, async (req, res) => {
+    let pool;
+    try {
+        const saleId = req.params.id;
+        pool = await mssql.connect(config);
+
+        // 1. Find the sale to know how much stock to return
+        const saleCheck = await pool.request()
+            .input('SaleId', mssql.Int, saleId)
+            .query(`SELECT InventoryId, Quantity FROM Sales WHERE Id = @SaleId`);
+
+        if (saleCheck.recordset.length === 0) {
+            return res.status(404).json({ success: false, error: "Eladás nem található!" });
+        }
+
+        const { InventoryId, Quantity } = saleCheck.recordset[0];
+
+        // 2. Delete the sale AND return the stock in one atomic transaction
+        await pool.request()
+            .input('SaleId', mssql.Int, saleId)
+            .input('InventoryId', mssql.Int, InventoryId)
+            .input('Quantity', mssql.Int, Quantity)
+            .query(`
+                BEGIN TRANSACTION;
+                -- Put the items back on the shelf
+                UPDATE StoreInventory SET Stock = Stock + @Quantity WHERE Id = @InventoryId;
+                -- Delete the record
+                DELETE FROM Sales WHERE Id = @SaleId;
+                COMMIT TRANSACTION;
+            `);
+
+        res.status(200).json({ success: true, message: "Eladás törölve, készlet visszaállítva!" });
     } catch (err) {
         if (pool) await pool.request().query('ROLLBACK TRANSACTION').catch(() => {});
         res.status(500).json({ success: false, error: err.message });

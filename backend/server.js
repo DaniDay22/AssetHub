@@ -13,6 +13,9 @@ app.use('/api/Auth', AuthRoute)
 const SalesRoute = require('./routes/Sales')
 app.use('/api/Sales', SalesRoute)
 
+const EmployeesRoute = require('./routes/employees')
+app.use('/api/Employees', EmployeesRoute)
+
 const PORT = process.env.PORT || 5000
 
 app.listen(PORT, () => {
