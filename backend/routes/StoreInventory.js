@@ -41,7 +41,7 @@ router.get('/All', authenticationToken, async (req, res) => {
 
         pool = await mssql.connect(config)
 
-        const result = pool.request()
+        const result = await pool.request()
             .input('UserId', mssql.Int, UserId)
             .query(`
             SELECT
@@ -86,7 +86,7 @@ router.get('/:PName', authenticationToken, async (req, res) => {
         if(inputValid){
             pool = await mssql.connect(config)
 
-            const result = pool.request()
+            const result = await pool.request()
                 .input('UserId', mssql.Int, UserId)
                 .input('PName', mssql.NVarChar, PName)
                 .query(`
@@ -123,7 +123,7 @@ router.get('/:PName', authenticationToken, async (req, res) => {
 router.post('/', authenticationToken, async (req, res) => {
     let pool;
     try{
-        const {PName, PCName, Brand, Unit, Price, Stock, Description} = req.body
+        const {PName, PCName, Brand, Unit, Price, Currency, Stock, Description} = req.body
         const {AuthLv, UserId} = req.user //Tokenből infó
 
         if(AuthLv == 4)
@@ -131,33 +131,62 @@ router.post('/', authenticationToken, async (req, res) => {
 
         pool = await mssql.connect(config)
 
-        const templateExists = pool.request()
-            .input('PName', mssql.NVarChar, PName.toLowerCase())
-            .input('Brand', mssql.NVarChar, Brand.toLowerCase())
-            .input('Unit', mssql.NVarChar, Unit.toLowerCase())
-            .input('PCName', mssql.NVarChar, PCName.toLowerCase())
+        await pool.request()
+            .input('PName', mssql.NVarChar, PName)
+            .input('Brand', mssql.NVarChar, Brand)
+            .input('Unit', mssql.NVarChar, Unit)
+            .input('PCName', mssql.NVarChar, PCName)
+            .input('Price', mssql.Decimal, Price)
+            .input('Currency', mssql.NVarChar, Currency)
+            .input('Stock', mssql.Decimal, Stock)
+            .input('Description', mssql.NVarChar, Description)
+            .input('UserId', mssql.Int, UserId)
             .query(`
-                DECLARE @Template TABLE (
-                    Name nvarchar(100),
-                    CategoryId int,
-                    Brand nvarchar(50),
-                    Unit nvarchar(10)
-                )
-                DECLARE inCategoryId = (SELECT Id FROM ProductCategory WHERE Name = @PCName)
+                DECLARE @CategoryId int;
+                DECLARE @ProductId int;
+                DECLARE @StoreId int;
 
-                -- Megnézzük, hogy létezik-e ez a sablon a Products-ban
-                INSERT INTO @Template (Name, CategoryId, Brand, Unit)
-                SELECT TOP 1
-                    Name,
-                    CategoryId,
-                    Brand,
-                    Unit
-                FROM Product
-                WHERE LOWER(Name) = @PName AND LOWER(Brand) = @Brand AND LOWER(Unit) = @Unit
-                AND CategoryId = @inCategoryId
+                -- Megnézzük, hogy létezik-e ez a kategória a ProductCategory-ban (Transaction folyt. köv.)
+                SET @CategoryId = (SELECT Id FROM ProductCategory WHERE Name = @PCName);
 
-                IF EXISTS (SELECT 1 )
+                -- Megnézzük, hogy létezik-e ez a sablon a Products-ban (Transaction folyt. köv.)
+                SET @ProductId = (SELECT TOP 1 Id FROM Product
+                    WHERE LOWER(Name) = LOWER(@PName) AND LOWER(Brand) = LOWER(@Brand)
+                    AND LOWER(Unit) = LOWER(@Unit) AND CategoryId = @CategoryId)
+
+                -- Kikeressük az alkalmazotthoz rendelt StoreId (Melyik boltnál dolgozik?)
+                SET @StoreId = (SELECT StoreId FROM Employee WHERE Id = @UserId) 
+
+                BEGIN TRANSACTION
+                    BEGIN TRY
+                        -- Ha még nincs ilyen kategória, akkor töltsük fel
+                        IF @CategoryId IS NULL
+                        BEGIN
+                            INSERT INTO ProductCategory (Name) VALUES (@PCName)
+                            SET @CategoryId = SCOPE_IDENTITY()  -- Elkérjük az új termék kategória Id-jét
+                        END;
+                        
+                        -- Ha még nincs ilyen termék sablon, töltsük fel
+                        IF @ProductId IS NULL
+                        BEGIN
+                            INSERT INTO Product (CategoryId, Name, Brand, Unit, Description) VALUES
+                                (@CategoryId, @PName, @Brand, @Unit, @Description)
+                            SET @ProductId = SCOPE_IDENTITY()  -- Elkérjük az új termék sablon Id-jét
+                        END;
+
+                        -- Feltöltjük a bolt idézőjeles raktárába a terméket
+                        INSERT INTO StoreInventory (StoreId, ProductId, Price, Currency, Stock) VALUES
+                        (@StoreId, @ProductId, @Price, @Currency, @Stock)
+                        
+                        COMMIT TRANSACTION;
+                    END TRY;
+                    BEGIN CATCH
+                        IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
+                        THROW;
+                    END CATCH;
                 `)
+
+        res.status(201).json({success: true, message: "Termék sikeresen feltöltve!"})
     }
     catch(err){
         console.error("Fetch ERROR:", err)
