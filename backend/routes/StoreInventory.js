@@ -169,14 +169,14 @@ router.post('/', authenticationToken, async (req, res) => {
                         -- Ha még nincs ilyen termék sablon, töltsük fel
                         IF @ProductId IS NULL
                         BEGIN
-                            INSERT INTO Product (CategoryId, Name, Brand, Unit, Description) VALUES
-                                (@CategoryId, @PName, @Brand, @Unit, @Description)
+                            INSERT INTO Product (CategoryId, Name, Brand, Unit) VALUES
+                                (@CategoryId, @PName, @Brand, @Unit)
                             SET @ProductId = SCOPE_IDENTITY()  -- Elkérjük az új termék sablon Id-jét
                         END;
 
                         -- Feltöltjük a bolt idézőjeles raktárába a terméket
-                        INSERT INTO StoreInventory (StoreId, ProductId, Price, Currency, Stock) VALUES
-                        (@StoreId, @ProductId, @Price, @Currency, @Stock)
+                        INSERT INTO StoreInventory (StoreId, ProductId, Price, Currency, Stock, Description) VALUES
+                        (@StoreId, @ProductId, @Price, @Currency, @Stock, @Description)
                         
                         COMMIT TRANSACTION;
                     END TRY;
@@ -187,6 +187,112 @@ router.post('/', authenticationToken, async (req, res) => {
                 `)
 
         res.status(201).json({success: true, message: "Termék sikeresen feltöltve!"})
+    }
+    catch(err){
+        console.error("Fetch ERROR:", err)
+        res.status(500).json({success: false, message: "Szerver hiba történt!"})
+    }
+    finally{
+        if (pool) pool.close()
+    }
+})
+
+router.patch('/', authenticationToken, async (req, res) => {
+    let pool;
+    try{
+        const {StoreInvId, ProductId, PName, PCName, Brand, Unit, Price, Currency, Stock, Description} = req.body
+        const {AuthLv} = req.user //Tokenből infó
+
+        if(AuthLv == 4)
+            return res.status(403).json({ success: false, error: "Ehhez a művelethez nincs jogosultságod!" });
+
+        pool = await mssql.connect(config)
+
+        await pool.request()
+        .input('PName', mssql.NVarChar, PName)
+            .input('Brand', mssql.NVarChar, Brand)
+            .input('Unit', mssql.NVarChar, Unit)
+            .input('PCName', mssql.NVarChar, PCName)
+            .input('Price', mssql.Decimal, Price)
+            .input('Currency', mssql.NVarChar, Currency)
+            .input('Stock', mssql.Decimal, Stock)
+            .input('Description', mssql.NVarChar, Description)
+            .input('currentProductId', mssql.Int, ProductId)
+            .input('StoreInventoryId', mssql.Int, StoreInvId)
+            .query(`
+                DECLARE @CategoryId int;
+                DECLARE @ProductId int;
+
+                -- Megnézzük, hogy létezik-e ez a kategória a ProductCategory-ban (Transaction folyt. köv.)
+                SET @CategoryId = (SELECT Id FROM ProductCategory WHERE Name = @PCName);
+
+                BEGIN TRANSACTION
+                    BEGIN TRY
+                        -- Ha még nincs ilyen kategória, akkor töltsük fel
+                        IF @CategoryId IS NULL
+                        BEGIN
+                            INSERT INTO ProductCategory (Name) VALUES (@PCName)
+                            SET @CategoryId = SCOPE_IDENTITY()  -- Elkérjük az új termék kategória Id-jét
+                        END;
+
+                        -- Megnézzük, hogy létezik-e ez a sablon a Products-ban
+                        -- Ezuttal már a CategoryId újra beillesztése után, ha megtörtént
+                        SET @ProductId = (SELECT TOP 1 Id FROM Product
+                            WHERE LOWER(Name) = LOWER(@PName) AND LOWER(Brand) = LOWER(@Brand)
+                            AND LOWER(Unit) = LOWER(@Unit) AND CategoryId = @CategoryId)
+                        
+                        -- Ha még nincs ilyen termék sablon, vagy nem ugyanaz mint a mostani, akkor...
+                        IF @ProductId IS NULL OR @ProductId <> @currentProductId
+                        BEGIN
+                            -- ...először megnézzük, hogy TÉNYLEG nincs ilyen sablon, ha nincs...
+                            IF @ProductId IS NULL
+                            BEGIN
+                                -- ...csináljuk meg a sablont
+                                INSERT INTO Product (CategoryId, Name, Brand, Unit) 
+                                VALUES (@CategoryId, @PName, @Brand, @Unit);
+                                
+                                SET @ProductId = SCOPE_IDENTITY(); -- Elkérjük az új termék sablon Id-jét
+                            END;
+
+                            -- ...állítsuk át az új termék sablonra a StoreInventory-nál.
+                            UPDATE StoreInventory
+                            SET ProductId = @ProductId
+                            WHERE Id = @StoreInventoryId;
+
+                            -- Töröljük ki a régi termék sablont !!CSAK AKKOR HA MÁS BOLT NEM HASZNÁLJA!!
+                            DELETE FROM Product
+                            WHERE Id = @currentProductId 
+                            AND Id <> @ProductId -- Nehogy magunkat töröljük le
+                            AND NOT EXISTS (SELECT 1 FROM StoreInventory WHERE ProductId = @currentProductId);
+                        END;
+
+                        -- Megnézzük, hogy legalább az egyik NEM NULL
+                        IF LEN(CONCAT(@Price, @Currency, @Description, @Stock)) > 0
+                        BEGIN
+                            -- Frissítjük az adatokat
+                            UPDATE StoreInventory
+                            SET 
+                                -- Ha a @Price 0 vagy NULL, marad a jelenlegi Price
+                                Price = COALESCE(NULLIF(@Price, 0), Price),
+                                
+                                -- Ha a @Currency üres ('') vagy NULL, marad a jelenlegi Currency
+                                Currency = COALESCE(NULLIF(@Currency, ''), Currency),
+                                
+                                -- Ha a @Description üres vagy NULL, marad a jelenlegi Description
+                                Description = COALESCE(NULLIF(@Description, ''), Description),
+                                
+                                -- Ha a @Stock NULL (itt a 0 lehet valid érték, szóval csak NULL-ra nézzük), marad a régi
+                                Stock = COALESCE(@Stock, Stock)
+                            WHERE Id = @StoreInventoryId;
+                        END;
+
+                        COMMIT TRANSACTION;
+                    END TRY;
+                    BEGIN CATCH
+                        IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
+                        THROW;
+                    END CATCH;
+                `)
     }
     catch(err){
         console.error("Fetch ERROR:", err)

@@ -7,111 +7,79 @@ GO
 USE AssetHubDb
 GO
 
--- 1. Tables with no dependencies
--- A t�rk�p layout-ja
-CREATE TABLE Map (
-    Id INT IDENTITY(1,1) PRIMARY KEY,
-    Width SMALLINT,
-    Height SMALLINT
-);
--- Autentik�ci� szintjei felhaszn�l�kn�l
+-- Autentikáció szintjei felhasználóknál
 CREATE TABLE AuthLevel (
     Id INT PRIMARY KEY,
-    Position NVARCHAR(30),
-    Description NVARCHAR(100)
+    Position NVARCHAR(30) NOT NULL,
+    Description NVARCHAR(100) NOT NULL
 );
--- Term�k kateg�ri�k
+-- Termék kategóriák
 CREATE TABLE ProductCategory (
     Id INT IDENTITY(1,1) PRIMARY KEY,
-    Name NVARCHAR(30)
-);
--- B�torok a t�rk�pen
-CREATE TABLE Furniture (
-    Id INT IDENTITY(1,1) PRIMARY KEY,
-    Name NVARCHAR(50),
-    Width SMALLINT,
-    Height SMALLINT
+    Name NVARCHAR(30) NOT NULL
 );
 
 -- 2. Tables with single-level dependencies
--- A f� t�bla 
+-- A fő tábla 
 CREATE TABLE Store (
     Id INT IDENTITY(1,1) PRIMARY KEY,
-    MapId INT,
-    Name NVARCHAR(100),
-    Address NVARCHAR(100),
-    FOREIGN KEY (MapId) REFERENCES Map(Id)
+    FranchiseId INT NOT NULL,
+    Name NVARCHAR(100) NOT NULL,
+    Address NVARCHAR(100) NOT NULL,
 );
--- term�kek
+-- termékek
 CREATE TABLE Product (
     Id INT IDENTITY(1,1) PRIMARY KEY,
-    CategoryId INT,
-    Name NVARCHAR(200),
-    Brand NVARCHAR(50),
-    Unit NVARCHAR(10),
+    CategoryId INT NOT NULL,
+    Name NVARCHAR(200) NOT NULL,
+    Brand NVARCHAR(50) NOT NULL,
+    Unit NVARCHAR(10) NOT NULL,
     FOREIGN KEY (CategoryId) REFERENCES ProductCategory(Id)
 );
 
 -- 3. Tables depending on Store and Product
--- alkalmazottak list�ja �s a bejelentkez�si adataik
+-- alkalmazottak listája és a bejelentkezési adataik
 CREATE TABLE Employee (
     Id INT IDENTITY(1,1) PRIMARY KEY,
-    StoreId INT,
-    AuthLv INT,
-    Password VARBINARY(255),
-    Name NVARCHAR(100),
-    Email NVARCHAR(50),
-    Phone NVARCHAR(15),
-    DoB DATETIME,
-    HiredAt DATETIME,
-    Salary INT,
-    FOREIGN KEY (StoreId) REFERENCES Store(Id),
+    StoreId INT NOT NULL,
+    FranchiseId INT NOT NULL,
+    AuthLv INT NOT NULL,
+    Password VARBINARY(255) NOT NULL,
+    Name NVARCHAR(100) NOT NULL,
+    Email NVARCHAR(50) NOT NULL,
+    Phone NVARCHAR(15) NOT NULL,
+    DoB DATE NOT NULL,
+    HiredAt DATETIME DEFAULT GETDATE(),
+    Salary INT NOT NULL,
+    Currency NVARCHAR(3) NOT NULL,
+    IsActive BIT DEFAULT 1,
+    CONSTRAINT FK_Store_Employee FOREIGN KEY (StoreId) REFERENCES Store(Id),
     FOREIGN KEY (AuthLv) REFERENCES AuthLevel(Id)
 );
--- rakt�rban l�v� k�szlet �s elad�saik 
+-- raktárban lévő készlet és eladásaik 
 CREATE TABLE StoreInventory (
     Id INT IDENTITY(1,1) PRIMARY KEY,
-    StoreId INT,
-    ProductId INT,
-    Price INT,
-    Description NVARCHAR(300),
-    Stock DECIMAL(18, 2),
-    Sold DECIMAL(18, 2),
-    ImagePath NVARCHAR(150),
+    StoreId INT NOT NULL,
+    ProductId INT NOT NULL,
+    Price INT NOT NULL,
+    Currency NVARCHAR(3) NOT NULL,
+    Description NVARCHAR(300) NULL,
+    Stock DECIMAL(18, 2) NOT NULL,
+    Sold DECIMAL(18, 2) DEFAULT 0.00,
     FOREIGN KEY (StoreId) REFERENCES Store(Id),
     FOREIGN KEY (ProductId) REFERENCES Product(Id)
 );
 
--- 4. Map and Furniture placement
--- a t�rk�pen l�v� b�torok elhelyeszked�se
-CREATE TABLE MapContent (
-    Id INT IDENTITY(1,1) PRIMARY KEY,
-    MapId INT,
-    FurnitureId INT,
-    CoordX INT,
-    CoordY INT,
-    FOREIGN KEY (MapId) REFERENCES Map(Id),
-    FOREIGN KEY (FurnitureId) REFERENCES Furniture(Id)
-);
-
--- 5. Final transactional and content tables
--- elad�sok
+-- 4. Final transactional and content tables
+-- eladások
 CREATE TABLE Sales (
     Id INT IDENTITY(1,1) PRIMARY KEY,
-    InventoryId INT,
-    EmployeeId INT,
-    PaymentMethod NVARCHAR(20),
-    PriceAtSale INT,
-    TimeSold DATETIME,
-    Quantity DECIMAL(18, 2),
+    InventoryId INT NOT NULL,
+    EmployeeId INT NOT NULL,
+    PaymentMethod NVARCHAR(20) NOT NULL,
+    PriceAtSale INT NOT NULL,
+    TimeSold DATETIME DEFAULT GETDATE(),
+    Quantity DECIMAL(18, 2) NOT NULL,
     FOREIGN KEY (InventoryId) REFERENCES StoreInventory(Id),
     FOREIGN KEY (EmployeeId) REFERENCES Employee(Id)
-);
--- b�torok tartalma
-CREATE TABLE FurnitureContent (
-    Id INT IDENTITY(1,1) PRIMARY KEY,
-    MapContentId INT,
-    StoreInvId INT,
-    FOREIGN KEY (MapContentId) REFERENCES MapContent(Id),
-    FOREIGN KEY (StoreInvId) REFERENCES StoreInventory(Id)
 );
