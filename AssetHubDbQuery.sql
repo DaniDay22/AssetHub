@@ -66,6 +66,7 @@ CREATE TABLE StoreInventory (
     Description NVARCHAR(300) NULL,
     Stock DECIMAL(18, 2) NOT NULL,
     Sold DECIMAL(18, 2) DEFAULT 0.00,
+    IsDeleted BIT DEFAULT 0,
     FOREIGN KEY (StoreId) REFERENCES Store(Id),
     FOREIGN KEY (ProductId) REFERENCES Product(Id)
 );
