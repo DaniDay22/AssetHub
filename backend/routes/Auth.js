@@ -32,36 +32,45 @@ const authenticationToken = (req, res, next) => {
 //Routes
 //Regisztráció Menedzserként (Boltot is felvesszük)
 router.post('/Register/Manager', async (req, res) => {
-    try{
-        const {name, password, email, phone, dob, storeName, storeAddress} = req.body
-        const emailFormatted = email.toLowerCase().trim()
+    let pool; // Moved outside so the 'finally' block can always close the connection
+    
+    try {
+        const {name, password, email, phone, dob, storeName, storeAddress} = req.body;
+        const emailFormatted = email.toLowerCase().trim();
 
-        const pool = await mssql.connect(config)
+        pool = await mssql.connect(config);
 
-        //Kikeressük a fiókot, hogy létezik-e
+        // 1. Check if the email is already registered
         const accountExists = await pool.request()
             .input('Email', mssql.NVarChar, emailFormatted)
-            .query(`SELECT TOP 1 Id FROM Employee
-                WHERE Email = @Email`)
+            .query(`SELECT TOP 1 Id FROM Employee WHERE Email = @Email`);
 
-        //Kikeressük a boltot, hogy létezik-e
+        if (accountExists.recordset.length > 0) { 
+            return res.status(400).json({success: false, error: "Ez az email már használatban van!"});
+        }
+
+        // 2. Check if the store name and address already exist
         const storeExists = await pool.request()
             .input('StoreName', mssql.NVarChar, storeName)
             .input('StoreAddress', mssql.NVarChar, storeAddress)
-            .query(`SELECT TOP 1 Id FROM Store
-                WHERE Name = @StoreName AND Address = @StoreAddress`)
+            .query(`SELECT TOP 1 Id FROM Store WHERE Name = @StoreName AND Address = @StoreAddress`);
                 
-        if(accountExists.recordset.length > 0){ //Ha van benne elem, az-az létezik
-            res.status(400).json({success: false, error: "Ez az email már használatban van!"})
+        if (storeExists.recordset.length > 0) { 
+            return res.status(400).json({success: false, error: "Ez a bolt már létezik!"});
         }
-        else if(storeExists.recordset.length > 0){ //Ha van benne elem, az-az létezik
-            res.status(400).json({success: false, error: "Ez a bolt már létezik!"})
-        }
-        else{
-            const hashedPass = await bcrypt.hash(password, 10);
-            const bufferedPass = Buffer.from(hashedPass)
+        
+        // 3. Hash the password for the database
+        const hashedPass = await bcrypt.hash(password, 10);
+        const bufferedPass = Buffer.from(hashedPass);
+        
+        // 4. Generate a brand new FranchiseId for this new company
+        const franchiseCheck = await pool.request().query(`
+            SELECT ISNULL(MAX(FranchiseId), 0) + 1 AS NewId FROM Store
+        `);
+        const newFranchiseId = franchiseCheck.recordset[0].NewId;
 
-            await pool.request()
+        // 5. Execute the Transaction (Insert Store -> Get StoreId -> Insert Employee)
+        await pool.request()
             .input('Name', mssql.NVarChar, name)
             .input('Password', mssql.VarBinary, bufferedPass)
             .input('Email', mssql.NVarChar, emailFormatted)
@@ -69,33 +78,52 @@ router.post('/Register/Manager', async (req, res) => {
             .input('DoB', mssql.Date, dob)
             .input('StoreName', mssql.NVarChar, storeName)
             .input('StoreAddress', mssql.NVarChar, storeAddress)
-            .query(`BEGIN TRANSACTION
+            .input('FranchiseId', mssql.Int, newFranchiseId)
+            .query(`
+                BEGIN TRANSACTION;
                 BEGIN TRY
-                    INSERT INTO Store(Name, Address) VALUES (@StoreName, @StoreAddress);
+                    -- Step A: Create the Store with the new FranchiseId
+                    INSERT INTO Store (Name, Address, FranchiseId) 
+                    VALUES (@StoreName, @StoreAddress, @FranchiseId);
 
-                    DECLARE @NewStoreId int = SCOPE_IDENTITY();
-
-                    INSERT INTO Employee(StoreId, AuthLv, Password, Name, Email, Phone, DoB, HiredAt) VALUES
-                        (@NewStoreId,
-                        (SELECT Id FROM AuthLevel WHERE Position = 'Manager'),
-                        @Password, @Name, @Email, @Phone, @DoB, GETDATE());
+                    -- Step B: Grab the ID of the store we literally just created
+                    DECLARE @NewStoreId INT = SCOPE_IDENTITY();
+                    
+                    -- Step C: Create the Owner (AuthLv 1) and link them to the Store & Franchise
+                    -- We explicitly set Currency to 'HUF' and IsActive to 1 to match the new schema
+                    INSERT INTO Employee (
+                        StoreId, FranchiseId, AuthLv, Password, Name, Email, Phone, DoB, HiredAt, Currency, IsActive
+                    ) VALUES (
+                        @NewStoreId, 
+                        @FranchiseId,
+                        1, 
+                        @Password, 
+                        @Name, 
+                        @Email, 
+                        @Phone, 
+                        @DoB, 
+                        GETDATE(), 
+                        'HUF', 
+                        1
+                    );
+                    
                     COMMIT TRANSACTION;
                 END TRY
                 BEGIN CATCH
                     IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
                     THROW;
-                END CATCH`)
+                END CATCH
+            `);
 
-            res.status(201).json({success: true, message: "Menedzseri fiók elkészítve!"})
-        }
+        res.status(201).json({success: true, message: "Menedzseri fiók elkészítve!"});
+        
+    } catch (err) {
+        console.error("Register Error:", err); 
+        res.status(500).json({success: false, error: "Hiba történt a regisztráció során!"});
+    } finally {
+        if (pool) await pool.close();
     }
-    catch(err){
-        res.status(500).json({success: false, error: err.message})
-    }
-    finally{
-        if (pool) await pool.close()
-    }
-})
+});
 
 //Regisztráció alkalmazottnak -> Csak a Menedzser(ek) tudják ezt elérni!!
 router.post('/Register/Employee', async (req, res) => {

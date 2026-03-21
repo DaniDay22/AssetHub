@@ -127,7 +127,7 @@ export default function EmployeesPage() {
     try {
       const token = localStorage.getItem('token');
       const res = await fetch(`http://localhost:5000/api/employees/${employeeId}`, {
-        method: 'DELETE',
+        method: 'UPDATE',
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const json = await res.json();
@@ -142,9 +142,9 @@ export default function EmployeesPage() {
   };
 
 const getAuthBadge = (level: number) => {
-    if (level === 1) return <span className="px-3 py-1 rounded-full text-xs font-bold bg-red-950 text-red-400 border border-red-800 tracking-wide">Super Admin</span>;
-    if (level <= 2) return <span className="px-3 py-1 rounded-full text-xs font-bold bg-purple-950 text-purple-400 border border-purple-800 tracking-wide">Manager</span>;
-    return <span className="px-3 py-1 rounded-full text-xs font-bold bg-blue-950 text-blue-400 border border-blue-800 tracking-wide">Staff</span>;
+    if (level === 1) return <span className="text-xs font-bold text-red-400 uppercase tracking-wider block mb-1">Tulajdonos</span>;
+    if (level <= 2) return <span className="text-xs font-bold text-purple-400 uppercase tracking-wider block mb-1">Üzletvezető</span>;
+    return <span className="text-xs font-bold text-blue-400 uppercase tracking-wider block mb-1">Eladó</span>;
   };
 
   return (
@@ -157,7 +157,7 @@ const getAuthBadge = (level: number) => {
             <Search className="text-slate-500 w-5 h-5 shrink-0 mr-3" />
             <input
               type="text"
-              placeholder="Search by name or email..."
+              placeholder="Keresés név vagy e-mail alapján..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full bg-transparent py-2.5 text-white placeholder:text-slate-500 focus:outline-none"
@@ -175,7 +175,7 @@ const getAuthBadge = (level: number) => {
       {loading ? (
         <div className="flex flex-col items-center justify-center h-64 text-slate-400">
           <Loader2 className="w-8 h-8 animate-spin mb-4 text-blue-500" />
-          <p>Loading team data...</p>
+          <p>Csapat adatainak betöltése...</p>
         </div>
       ) : error ? (
         <div className="p-4 bg-red-500/10 border border-red-500/20 text-red-400 rounded-xl">{error}</div>
@@ -188,7 +188,7 @@ const getAuthBadge = (level: number) => {
                 <div className="flex justify-between items-start mb-4">
                   <div>
                     <span className="text-xs font-bold uppercase tracking-wider text-blue-400 mb-1 block">
-                      {emp.AuthLv === 1 ? 'Super Admin' : emp.AuthLv === 2 ? 'Manager' : 'Staff'}
+                      {emp.AuthLv === 1 ? 'Tulajdonos' : emp.AuthLv === 2 ? 'Üzletvezető' : 'Eladó'}
                     </span>
                     <h3 className="text-lg font-bold text-white leading-tight">
                       {emp.Name}
@@ -200,14 +200,14 @@ const getAuthBadge = (level: number) => {
                     <button 
                       onClick={() => openEditModal(emp)} 
                       className="text-slate-500 hover:text-blue-400 transition-colors"
-                      title="Edit Employee"
+                      title="Alkalmazott Szerkesztése"
                     >
                       <Pencil className="w-5 h-5" />
                     </button>
                     <button 
                       onClick={() => handleDeleteEmployee(emp.Id)} 
                       className="text-slate-500 hover:text-red-400 transition-colors"
-                      title="Remove Employee"
+                      title="Alkalmazott Törlése"
                     >
                       <Trash2 className="w-5 h-5" />
                     </button>
@@ -238,17 +238,19 @@ const getAuthBadge = (level: number) => {
               <X className="w-6 h-6" />
             </button>
 
-            <h2 className="text-2xl font-bold text-white mb-6">Add Team Member</h2>
+            <h2 className="text-2xl font-bold text-white mb-6">
+              {isEditMode ? "Alkalmazott Szerkesztése" : "Új Alkalmazott"}
+            </h2>
 
             <form onSubmit={handleSubmit} className="space-y-4">
               {/* Row 1: Name & DOB */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-1">Full Name</label>
+                  <label className="block text-sm font-medium text-slate-300 mb-1">Teljes Név</label>
                   <input type="text" required value={newEmployee.name} onChange={(e) => setNewEmployee({...newEmployee, name: e.target.value})} className="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-blue-500" />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-1">Date of Birth</label>
+                  <label className="block text-sm font-medium text-slate-300 mb-1">Születési Dátum</label>
                   <input type="date" required value={newEmployee.doB} onChange={(e) => setNewEmployee({...newEmployee, doB: e.target.value})} className="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-blue-500 [color-scheme:dark]" />
                 </div>
               </div>
@@ -256,11 +258,11 @@ const getAuthBadge = (level: number) => {
               {/* Row 2: Email & Phone */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-1">Email</label>
+                  <label className="block text-sm font-medium text-slate-300 mb-1">E-mail cím</label>
                   <input type="email" required value={newEmployee.email} onChange={(e) => setNewEmployee({...newEmployee, email: e.target.value})} className="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-blue-500" />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-1">Phone</label>
+                  <label className="block text-sm font-medium text-slate-300 mb-1">Telefonszám</label>
                   <input type="text" required value={newEmployee.phone} onChange={(e) => setNewEmployee({...newEmployee, phone: e.target.value})} className="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-blue-500" placeholder="+36..." />
                 </div>
               </div>
@@ -268,25 +270,26 @@ const getAuthBadge = (level: number) => {
               {/* Row 3: Role & Salary */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-1">Role</label>
+                  <label className="block text-sm font-medium text-slate-300 mb-1">Szerepkör</label>
                   <select value={newEmployee.authLv} onChange={(e) => setNewEmployee({...newEmployee, authLv: parseInt(e.target.value)})} className="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-blue-500">
-                    <option value={3}>Staff</option>
-                    <option value={2}>Manager</option>
+                    <option value={3}>Eladó</option>
+                    <option value={2}>Üzletvezető</option>
+                    <option value={1}>Tulajdonos</option>
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-1">Salary (Optional)</label>
-                  <input type="number" value={newEmployee.salary} onChange={(e) => setNewEmployee({...newEmployee, salary: e.target.value})} className="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-blue-500" placeholder="e.g. 400000" />
+                  <label className="block text-sm font-medium text-slate-300 mb-1">Fizetés (Opcionális)</label>
+                  <input type="number" value={newEmployee.salary} onChange={(e) => setNewEmployee({...newEmployee, salary: e.target.value})} className="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-blue-500" placeholder="pl. 400000" />
                 </div>
               </div>
 
               {/* Only show the password generator if we are creating a NEW user */}
               {!isEditMode && (
                 <div className="mt-2 p-3 bg-blue-500/10 border border-blue-500/30 rounded-lg">
-                  <label className="block text-xs font-bold text-blue-400 uppercase tracking-wider mb-1">Generated Temp Password</label>
+                  <label className="block text-xs font-bold text-blue-400 uppercase tracking-wider mb-1">Generált Ideiglenes Jelszó</label>
                   <div className="flex justify-between items-center">
                     <span className="text-white font-mono text-lg">{newEmployee.password}</span>
-                    <button type="button" onClick={() => setNewEmployee({...newEmployee, password: generateTempPassword()})} className="text-slate-400 hover:text-white" title="Regenerate Password">
+                    <button type="button" onClick={() => setNewEmployee({...newEmployee, password: generateTempPassword()})} className="text-slate-400 hover:text-white" title="Jelszó Újragenerálása">
                       <RefreshCw className="w-5 h-5" />
                     </button>
                   </div>
@@ -294,14 +297,13 @@ const getAuthBadge = (level: number) => {
               )}
 
               <button type="submit" className="w-full bg-blue-600 hover:bg-blue-500 text-white font-medium py-2.5 rounded-lg mt-4 transition-colors">
-                {isEditMode ? "Save Changes" : "Hire Employee"}
+                {isEditMode ? "Módosítások Mentése" : "Felvétel"}
               </button>
             </form>
 
           </div>
         </div>
       )}
-
     </div>
   );
 }

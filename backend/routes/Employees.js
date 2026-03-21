@@ -54,6 +54,7 @@ router.get('/List', authenticationToken, async (req, res) => {
                     StoreName = (SELECT Name FROM Store WHERE Id = Employee.StoreId)
                 FROM Employee
                 WHERE StoreId = (SELECT StoreId FROM Employee WHERE Id = @UserId)
+                AND IsActive = 1
                 ORDER BY Name ASC
             `);
 
@@ -107,7 +108,10 @@ router.post('/Add', authenticationToken, async (req, res) => {
             .input('Salary', mssql.Int, salary ? parseInt(salary) : null) // Salary is optional
             .input('CreatorId', mssql.Int, creatorId)
             .query(`
-                INSERT INTO Employee (Name, Email, Password, AuthLv, StoreId, Phone, DoB, HiredAt, Salary)
+                DECLARE @MyStoreId INT = (SELECT StoreId FROM Employee WHERE Id = @MyId);
+                DECLARE @MyFranchiseId INT = (SELECT FranchiseId FROM Employee WHERE Id = @MyId);
+
+                INSERT INTO Employee (Name, Email, Password, AuthLv, StoreId, Phone, DoB, HiredAt, Salary, FranchiseId)
                 VALUES (
                     @Name, 
                     @Email, 
@@ -117,7 +121,8 @@ router.post('/Add', authenticationToken, async (req, res) => {
                     @Phone,
                     @DoB,
                     GETDATE(), -- Automatically sets the HiredAt timestamp
-                    @Salary
+                    @Salary,
+                    @MyFranchiseId -- New employees get the same FranchiseId as their creator
                 )
             `);
 
@@ -131,7 +136,7 @@ router.post('/Add', authenticationToken, async (req, res) => {
 });
 
 // DELETE: Remove an employee
-router.delete('/:id', authenticationToken, async (req, res) => {
+router.put('/:id', authenticationToken, async (req, res) => {
     let pool;
     try {
         const targetId = req.params.id;
@@ -153,7 +158,8 @@ router.delete('/:id', authenticationToken, async (req, res) => {
             .input('TargetId', mssql.Int, targetId)
             .input('MyId', mssql.Int, myId)
             .query(`
-                DELETE FROM Employee 
+                UPDATE Employee 
+                SET IsActive = 0 
                 WHERE Id = @TargetId 
                 AND StoreId = (SELECT StoreId FROM Employee WHERE Id = @MyId)
             `);
