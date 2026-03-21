@@ -16,6 +16,9 @@ app.use('/api/Sales', SalesRoute)
 const EmployeesRoute = require('./routes/employees')
 app.use('/api/Employees', EmployeesRoute)
 
+const StoreInventoryRoute = require('./routes/StoreInventory')
+app.use('/api/StoreInventory', StoreInventoryRoute)
+
 const PORT = process.env.PORT || 5000
 
 app.listen(PORT, () => {

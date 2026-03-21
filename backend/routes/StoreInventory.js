@@ -45,13 +45,15 @@ router.get('/All', authenticationToken, async (req, res) => {
             .input('UserId', mssql.Int, UserId)
             .query(`
             SELECT
+                SI.Id,
                 P.Name,
                 PC.Name,
                 P.Brand,
                 P.Unit,
                 SI.Price,
                 SI.Stock,
-                SI.Sold
+                SI.Sold,
+                SI.Description
             FROM StoreInventory SI
             INNER JOIN Product P ON SI.ProductId = P.Id
             INNER JOIN ProductCategory PC ON P.CategoryId = PC.Id
@@ -60,56 +62,6 @@ router.get('/All', authenticationToken, async (req, res) => {
             `)
 
         res.status(200).json({success: true, data: result.recordset})
-    }
-    catch(err){
-        console.error("Fetch ERROR:", err)
-        res.status(500).json({success: false, message: "Szerver hiba történt!"})
-    }
-    finally{
-        if (pool) pool.close()
-    }
-})
-
-//Szűrés termék név alapján
-router.get('/:PName', authenticationToken, async (req, res) => {
-    let pool;
-    try{
-        let PName = req.params.PName //Beírt adat
-        const {AuthLv, UserId} = req.user //Tokenből infó
-
-        if(AuthLv == 4) //Még nem biztos hogy marad: Mindenki aki nem eladó letudja kérdezni
-            return res.status(403).json({ success: false, error: "Ehhez a művelethez nincs jogosultságod!" });
-
-        PName = PName.trim()
-        const inputValid = validator.matches(PName, filter) //Helyes-e amit a felhasználó beírt: nincs speciális karakter
-
-        if(inputValid){
-            pool = await mssql.connect(config)
-
-            const result = await pool.request()
-                .input('UserId', mssql.Int, UserId)
-                .input('PName', mssql.NVarChar, PName)
-                .query(`
-                SELECT
-                    P.Name,
-                    PC.Name,
-                    P.Brand,
-                    P.Unit,
-                    SI.Price,
-                    SI.Stock,
-                    SI.Sold
-                FROM StoreInventory SI
-                INNER JOIN Product P ON SI.ProductId = P.Id
-                INNER JOIN ProductCategory PC ON P.CategoryId = PC.Id
-                WHERE SI.StoreId = (SELECT StoreId FROM Employee WHERE Id = @UserId)
-                AND P.Name LIKE @PName + '%'
-                ORDER BY P.Name ASC
-                `)
-
-            res.status(200).json({success: true, data: result.recordset})
-        }
-
-        res.status(401).json({success: false, message: "Nem lehet speciális karakter a kérésben!"})
     }
     catch(err){
         console.error("Fetch ERROR:", err)
@@ -466,3 +418,5 @@ router.delete('/', authenticationToken, async (req, res) => {
         if (pool) pool.close()
     }
 })
+
+module.exports = router
