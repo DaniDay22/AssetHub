@@ -29,6 +29,35 @@ const authenticationToken = (req, res, next) => {
     })
 }
 
+router.put('/UpdateProfile', authenticationToken, async (req, res) => {
+    try {
+        const userId = req.user.UserId;
+        const { email, phone } = req.body;
+
+        const pool = await mssql.connect(config);
+
+        // Check if email is already taken by someone else
+        const emailCheck = await pool.request()
+            .input('Email', mssql.NVarChar, email)
+            .input('UserId', mssql.Int, userId)
+            .query('SELECT Id FROM Employee WHERE Email = @Email AND Id != @UserId');
+
+        if (emailCheck.recordset.length > 0) {
+            return res.status(400).json({ success: false, error: "Ez az e-mail cím már foglalt!" });
+        }
+
+        await pool.request()
+            .input('UserId', mssql.Int, userId)
+            .input('Email', mssql.NVarChar, email)
+            .input('Phone', mssql.NVarChar, phone)
+            .query('UPDATE Employee SET Email = @Email, Phone = @Phone WHERE Id = @UserId');
+
+        res.status(200).json({ success: true, message: "Profil sikeresen frissítve!" });
+    } catch (err) {
+        res.status(500).json({ success: false, error: "Szerver hiba történt." });
+    }
+});
+
 //Routes
 //Regisztráció Menedzserként (Boltot is felvesszük)
 router.post('/Register/Manager', async (req, res) => {
@@ -187,7 +216,7 @@ router.post('/Login', async (req, res) => {
 
         const result = await pool.request()
             .input('Email', mssql.NVarChar, email.toLowerCase().trim())
-            .query(`SELECT TOP 1 Id, Name, Email, Password, AuthLv FROM Employee WHERE Email = @Email`);
+            .query(`SELECT TOP 1 Id, Name, Email, Password, AuthLv, StoreId, FranchiseId FROM Employee WHERE Email = @Email`);
 
         const user = result.recordset[0]; // recordset[0] kell, nem a teljes tömb
 
@@ -209,6 +238,8 @@ router.post('/Login', async (req, res) => {
                 const token = jwt.sign({
                     UserId: user.Id, // Figyelj, hogy UserId vagy Id a kulcs!
                     AuthLv: user.AuthLv,
+                    StoreId: user.StoreId,
+                    FranchiseId: user.FranchiseId,
                     Email: user.Email,
                     Name: user.Name
                 }, jwt_secretKey, { expiresIn: '2h' });

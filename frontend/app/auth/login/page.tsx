@@ -31,10 +31,10 @@ export default function LoginPage() {
         document.cookie = `token=${data.token}; path=/; max-age=${60 * 60 * 2}; SameSite=Lax`;
       } else {
         // Displays "Hibás adatok!" or whatever the server sends
-        setError(data.error || 'Login failed');
+        setError(data.error || 'A bejelentkezés sikertelen volt');
       }
     } catch (err) {
-      setError('Could not connect to the server.');
+      setError('Nem sikerült kapcsolódni a szerverhez.');
     } finally {
       setLoading(false);
     }
@@ -47,13 +47,13 @@ export default function LoginPage() {
 
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
         <a href="/" className="flex items-center text-sm text-slate-400 hover:text-blue-400 transition-colors mb-8 w-fit">
-          <ChevronLeft className="w-4 h-4 mr-1" /> Back to home
+          <ChevronLeft className="w-4 h-4 mr-1" /> Vissza a főoldalra
         </a>
         <h2 className="text-3xl font-bold tracking-tight text-white">
-          Welcome back
+          Üdvözlünk újra!
         </h2>
         <p className="mt-2 text-slate-400">
-          Sign in to manage your inventory and assets.
+          Jelentkezz be a készlet és az erőforrások kezeléséhez.
         </p>
       </div>
 
@@ -71,7 +71,7 @@ export default function LoginPage() {
             )}
 
             <div>
-              <label className="block text-sm font-medium text-slate-300">Email address</label>
+              <label className="block text-sm font-medium text-slate-300">E-mail cím</label>
               <div className="mt-2 relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                   <Mail className="h-5 w-5 text-slate-500" />
@@ -80,7 +80,7 @@ export default function LoginPage() {
                   type="email"
                   required
                   className="block w-full pl-10 bg-slate-950 border border-slate-800 text-white rounded-xl py-3 px-4 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
-                  placeholder="name@company.com"
+                  placeholder="nev@cegnev.hu"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                 />
@@ -88,7 +88,7 @@ export default function LoginPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-300">Password</label>
+              <label className="block text-sm font-medium text-slate-300">Jelszó</label>
               <div className="mt-2 relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                   <Lock className="h-5 w-5 text-slate-500" />
@@ -107,10 +107,10 @@ export default function LoginPage() {
             <div className="flex items-center justify-between">
               <div className="flex items-center text-sm">
                 <input type="checkbox" className="h-4 w-4 rounded border-slate-800 bg-slate-950 text-blue-500 focus:ring-blue-500/50" />
-                <label className="ml-2 text-slate-400">Remember me</label>
+                <label className="ml-2 text-slate-400">Emlékezz rám</label>
               </div>
               <div className="text-sm">
-                <a href="#" className="font-medium text-blue-400 hover:text-blue-300">Forgot password?</a>
+                <a href="#" className="font-medium text-blue-400 hover:text-blue-300">Elfelejtetted a jelszavad?</a>
               </div>
             </div>
 
@@ -123,7 +123,7 @@ export default function LoginPage() {
                 <Loader2 className="w-5 h-5 animate-spin" />
               ) : (
                 <>
-                  Sign in
+                  Bejelentkezés
                   <ArrowRight className="ml-2 w-4 h-4 group-hover:translate-x-1 transition-transform" />
                 </>
               )}
@@ -132,9 +132,9 @@ export default function LoginPage() {
 
           <div className="mt-8 text-center">
             <p className="text-sm text-slate-400">
-              New to AssetHub?{' '}
+              Még nincs fiókod?{' '}
               <a href="/auth/register" className="font-medium text-blue-400 hover:text-blue-300">
-                Create an account
+                Hozz létre egy fiókot
               </a>
             </p>
           </div>

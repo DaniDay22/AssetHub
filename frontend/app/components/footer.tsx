@@ -22,7 +22,7 @@ export default function Footer(){
         
         <span className="text-xl font-bold text-white tracking-tight">AssetHub</span>
         <p className="text-slate-500 text-sm mb-2">
-          &copy; 2026 AssetHub Systems Inc. Built for the future of retail.
+          &copy; 2026 AssetHub Systems Inc.
         </p>
         <div className="flex items-center justify-center gap-2 mb-2">
             <Link href="#" className="text-slate-500 text-sm mb-2 hover:text-gray-400">
@@ -34,7 +34,7 @@ export default function Footer(){
           </div>
           <div>
             <Link href="/about" className="text-slate-500 text-sm mb-2 hover:text-gray-400">
-              About
+              Rólunk
             </Link>
           </div>
       </footer>

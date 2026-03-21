@@ -12,15 +12,15 @@ export default function AssetHubLanding() {
         <div className="max-w-6xl mx-auto text-center">
 
           <h1 className="text-5xl md:text-7xl font-bold tracking-tight text-white mb-6">
-            Inventory management <br />
+            Készletkezelés <br />
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-indigo-400">
-              without the headache.
+              fejfájás nélkül.
             </span>
           </h1>
           
           <p className="max-w-2xl mx-auto text-lg md:text-xl text-slate-400 mb-10">
-            AssetHub gives you real-time visibility into your stock, 
-            powerful analytics and a custom map of your store to scale your business efficiently.
+            Az AssetHub valós idejű rálátást biztosít az árukészletedre, 
+            részletes analitikát és egyedi bolttérképet kínál, hogy hatékonyan növelhesd a vállalkozásodat.
           </p>
           
 
@@ -34,18 +34,18 @@ export default function AssetHubLanding() {
             {[
               {
                 icon: <Package className="w-6 h-6 text-blue-400" />,
-                title: "Stock Tracking",
-                desc: "Live updates across multiple locations. Know exactly what's in your warehouse at a glance."
+                title: "Készletkövetés",
+                desc: "Élő adatok több helyszínről. Egyetlen pillantással láthatod, mi található pontosan a raktáradban."
               },
               {
                 icon: <BarChart3 className="w-6 h-6 text-blue-400" />,
-                title: "Deep Analytics",
-                desc: "Predict demand patterns and optimize your capital with AI-driven inventory insights."
+                title: "Részletes Analitika",
+                desc: "Jósolj meg keresleti mintákat és optimalizáld a tőkédet intelligens, adatalapú készletinformációkkal."
               },
               {
                 icon: <Map className="w-6 h-6 text-blue-400" />,
-                title: "Store-Map",
-                desc: "Never get lost of where your products are again. Create a custom map of your store and/or warehouse."
+                title: "Interaktív Bolttérkép",
+                desc: "Soha többé ne keresgéld a termékeket. Hozz létre egyedi térképet az üzletedhez és a raktáradhoz."
               }
             ].map((feature, i) => (
               <div key={i} className="p-8 rounded-2xl bg-slate-900/50 border border-slate-800 hover:border-blue-500/50 transition-colors group">
@@ -60,30 +60,30 @@ export default function AssetHubLanding() {
         </div>
       </section>
 
-      {/* Social Proof / Stats */}
+      {/* Social Proof / Stats !!to be edited!!*/}
       <section className="px-6 py-20">
         <div className="max-w-4xl mx-auto bg-gradient-to-b from-blue-800 to-indigo-700 rounded-4xl p-12 text-center shadow-2xl overflow-hidden relative">
             {/* Subtle Pattern */}
             <div className="absolute inset-0 opacity-10 pointer-events-none" 
                  style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, white 1px, transparent 0)', backgroundSize: '24px 24px' }} />
             
-            <h2 className="text-3xl font-bold text-white mb-8 relative z-10">Trusted by 500+ growing retailers</h2>
+            <h2 className="text-3xl font-bold text-white mb-8 relative z-10">Több mint 500 növekvő vállalkozás bizalmával</h2>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-8 relative z-10">
                 <div>
                     <div className="text-4xl font-bold text-white mb-1">99.7%</div>
-                    <div className="text-blue-100 text-sm">Accuracy Rate</div>
+                    <div className="text-blue-100 text-sm">Pontosság</div>
                 </div>
                 <div>
                     <div className="text-4xl font-bold text-white mb-1">24/7</div>
-                    <div className="text-blue-100 text-sm">Live Monitoring</div>
+                    <div className="text-blue-100 text-sm">Élő Felügyelet</div>
                 </div>
                 <div>
                     <div className="text-4xl font-bold text-white mb-1">12m+</div>
-                    <div className="text-blue-100 text-sm">Assets Tracked</div>
+                    <div className="text-blue-100 text-sm">Kezelt Termék</div>
                 </div>
                 <div>
                     <div className="text-4xl font-bold text-white mb-1">30%</div>
-                    <div className="text-blue-100 text-sm">Cost Savings</div>
+                    <div className="text-blue-100 text-sm">Költségmegtakarítás</div>
                 </div>
             </div>
         </div>

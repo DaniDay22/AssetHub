@@ -38,13 +38,13 @@ export default function RegisterPage() {
       const data = await res.json();
 
       if (res.ok && data.success) {
-        alert("Registration successful! Please log in.");
-        router.push('/auth/login');
+        alert("Sikeres regisztráció! Kérjük, jelentkezz be.");
+        router.push('/login'); // Changed to match your anchor tag below
       } else {
-        setError(data.error || "Registration failed");
+        setError(data.error || "A regisztráció sikertelen volt.");
       }
     } catch (err) {
-      setError("Cannot connect to server.");
+      setError("Nem sikerült kapcsolódni a szerverhez.");
     } finally {
       setLoading(false);
     }
@@ -56,10 +56,10 @@ export default function RegisterPage() {
 
       <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
         <a href="/" className="flex items-center text-sm text-slate-400 hover:text-blue-400 transition-colors mb-8 w-fit mx-auto">
-          <ChevronLeft className="w-4 h-4 mr-1" /> Back to home
+          <ChevronLeft className="w-4 h-4 mr-1" /> Vissza a főoldalra
         </a>
-        <h2 className="text-3xl font-bold tracking-tight text-white">Get started</h2>
-        <p className="mt-2 text-slate-400">Set up your organization's asset hub.</p>
+        <h2 className="text-3xl font-bold tracking-tight text-white">Kezdjünk bele</h2>
+        <p className="mt-2 text-slate-400">Hozza létre a vállalatainak központi fiókját.</p>
       </div>
 
       <div className="mt-10 sm:mx-auto sm:w-full sm:max-w-xl">
@@ -75,33 +75,33 @@ export default function RegisterPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               {/* Personal Info */}
               <div className="space-y-5">
-                <InputGroup label="Full Name" icon={<User size={18}/>} name="name" type="text" placeholder="John Doe" value={formData.name} onChange={handleChange} />
-                <InputGroup label="Work Email" icon={<Mail size={18}/>} name="email" type="email" placeholder="john@company.com" value={formData.email} onChange={handleChange} />
-                <InputGroup label="Phone Number" icon={<Phone size={18}/>} name="phone" type="tel" placeholder="+36 30 123 4567" value={formData.phone} onChange={handleChange} />
+                <InputGroup label="Teljes Név" icon={<User size={18}/>} name="name" type="text" placeholder="Kovács János" value={formData.name} onChange={handleChange} />
+                <InputGroup label="Munkahelyi E-mail" icon={<Mail size={18}/>} name="email" type="email" placeholder="janos@cegnev.hu" value={formData.email} onChange={handleChange} />
+                <InputGroup label="Telefonszám" icon={<Phone size={18}/>} name="phone" type="tel" placeholder="+36 30 123 4567" value={formData.phone} onChange={handleChange} />
               </div>
 
               {/* Store & Security Info */}
               <div className="space-y-5">
-                <InputGroup label="Company Name" icon={<Building2 size={18}/>} name="storeName" type="text" placeholder="Acme Corp" value={formData.storeName} onChange={handleChange} />
-                <InputGroup label="Store Address" icon={<MapPin size={18}/>} name="storeAddress" type="text" placeholder="123 Main St, City" value={formData.storeAddress} onChange={handleChange} />
-                <InputGroup label="Date of Birth" icon={<Calendar size={18}/>} name="dob" type="date" placeholder="" value={formData.dob} onChange={handleChange} />
+                <InputGroup label="Cégnév / Bolt neve" icon={<Building2 size={18}/>} name="storeName" type="text" placeholder="Példa Kft." value={formData.storeName} onChange={handleChange} />
+                <InputGroup label="Bolt Címe" icon={<MapPin size={18}/>} name="storeAddress" type="text" placeholder="1051 Budapest, Fő utca 1." value={formData.storeAddress} onChange={handleChange} />
+                <InputGroup label="Születési Dátum" icon={<Calendar size={18}/>} name="dob" type="date" placeholder="" value={formData.dob} onChange={handleChange} />
               </div>
             </div>
 
-            <InputGroup label="Password" icon={<Lock size={18}/>} name="password" type="password" placeholder="••••••••" value={formData.password} onChange={handleChange} />
+            <InputGroup label="Jelszó" icon={<Lock size={18}/>} name="password" type="password" placeholder="••••••••" value={formData.password} onChange={handleChange} />
 
             <button
               type="submit"
               disabled={loading}
               className="w-full flex justify-center items-center py-3 px-4 mt-4 rounded-xl text-white font-semibold bg-gradient-to-r from-blue-600 to-indigo-600 hover:opacity-90 transition-all shadow-lg shadow-blue-500/20 group disabled:opacity-50"
             >
-              {loading ? <Loader2 className="animate-spin" /> : <>Register Account <ArrowRight className="ml-2 w-4 h-4 group-hover:translate-x-1 transition-all" /></>}
+              {loading ? <Loader2 className="animate-spin" /> : <>Fiók Létrehozása <ArrowRight className="ml-2 w-4 h-4 group-hover:translate-x-1 transition-all" /></>}
             </button>
           </form>
 
           <div className="mt-8 text-center">
             <p className="text-sm text-slate-400">
-              Already have an account? <a href="/login" className="font-medium text-blue-400 hover:text-blue-300">Log in</a>
+              Már van fiókod? <a href="/login" className="font-medium text-blue-400 hover:text-blue-300">Jelentkezz be</a>
             </p>
           </div>
         </div>

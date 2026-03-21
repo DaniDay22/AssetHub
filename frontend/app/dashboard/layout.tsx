@@ -2,7 +2,8 @@
 import React from 'react';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { Users, Package, BarChart3, Map, User } from 'lucide-react';
+// Swapped out 'Map' for 'Store'
+import { Users, Package, BarChart3, Store, User } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -10,11 +11,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const { user } = useAuth(); 
 
   const navItems = [
-    { label: 'Employees', icon: <Users size={24} />, href: '/dashboard/employees', roles: [1, 2] }, 
-    { label: 'Products', icon: <Package size={24} />, href: '/dashboard/product', roles: [1, 2, 3] },
-    { label: 'Sales Feed', icon: <BarChart3 size={24} />, href: '/dashboard/sales', roles: [1, 2, 3] },
-    { label: 'Store Map', icon: <Map size={24} />, href: '/dashboard/map', roles: [1, 2, 3] },
-    { label: 'Account', icon: <User size={24} />, href: '/dashboard/account', roles: [1, 2, 3] },
+    { label: 'Alkalmazottak', icon: <Users size={24} />, href: '/dashboard/employees', roles: [1, 2] }, 
+    { label: 'Termékek', icon: <Package size={24} />, href: '/dashboard/product', roles: [1, 2, 3] },
+    { label: 'Eladások', icon: <BarChart3 size={24} />, href: '/dashboard/sales', roles: [1, 2, 3] },
+    { label: 'Boltok', icon: <Store size={24} />, href: '/dashboard/stores', roles: [1, 2] }, // Only Owners (1) & Managers (2)
+    { label: 'Fiók', icon: <User size={24} />, href: '/dashboard/account', roles: [1, 2, 3] },
   ];
 
   const visibleItems = navItems.filter(item => {
@@ -32,8 +33,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       {/* SIDEBAR */}
       <aside className="w-72 border-r border-slate-800 flex flex-col h-[calc(100vh-96px)] bg-[#020617] shrink-0 relative z-20">
         
-        
-        <nav className="flex-1 px-4  mt-8 flex flex-col space-y-2">
+        <nav className="flex-1 px-4 mt-8 flex flex-col space-y-2">
           {visibleItems.map((item) => {
             const isActive = pathname === item.href;
             return (

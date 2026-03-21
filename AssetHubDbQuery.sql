@@ -50,8 +50,8 @@ CREATE TABLE Employee (
     Phone NVARCHAR(15) NOT NULL,
     DoB DATE NOT NULL,
     HiredAt DATETIME DEFAULT GETDATE(),
-    Salary INT NOT NULL,
-    Currency NVARCHAR(3) NOT NULL,
+    Salary INT,
+    Currency NVARCHAR(3),
     IsActive BIT DEFAULT 1,
     CONSTRAINT FK_Store_Employee FOREIGN KEY (StoreId) REFERENCES Store(Id),
     FOREIGN KEY (AuthLv) REFERENCES AuthLevel(Id)

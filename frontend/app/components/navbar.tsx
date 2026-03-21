@@ -17,10 +17,10 @@ const { user, logout } = useAuth();
                 <>
               <div className="flex justify-start space-x-4">
           <Link href="/" className="hover:text-gray-300 font-bold tracking-tight border border-slate-500 rounded-md px-5 py-1">
-            Home
+            Kezdőlap
           </Link>
           <Link href="/dashboard" className="bg-blue-600 hover:bg-blue-700 text-white font-bold tracking-tight border border-blue-500 rounded-md px-5 py-1">
-            Dashboard
+            Vezérlőpult
           </Link>
         </div>
 
@@ -37,7 +37,7 @@ const { user, logout } = useAuth();
         <div className="flex justify-end">
           {/* You might want a Logout button or Profile link here later */}
           <button onClick={logout} className="hover:text-red-400 font-bold tracking-tight border border-slate-500 rounded-md px-5 py-1">
-            Logout
+            Kijelentkezés
           </button>
         </div>
             </>
@@ -46,7 +46,7 @@ const { user, logout } = useAuth();
                 <>
               <div className="flex justify-start">
               <Link href="/" className="hover:text-gray-300 font-bold tracking-tight border border-slate-500 rounded-md px-5 py-1">
-                Home
+                Kezdőlap
               </Link>
             </div>
 
@@ -62,10 +62,10 @@ const { user, logout } = useAuth();
 
             <div className="flex justify-end space-x-4">
               <Link href="/auth/login" className="hover:text-gray-300 font-bold tracking-tight border border-slate-500 rounded-md px-5 py-1">
-                Login
+                Bejelentkezés
               </Link>
               <Link href="/auth/register" className="hover:text-gray-300 font-bold tracking-tight border border-slate-500 rounded-md px-5 py-1">
-                Register
+                Regisztáció
               </Link>
             </div>
             </>

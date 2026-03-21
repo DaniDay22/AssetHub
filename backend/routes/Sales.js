@@ -1,103 +1,131 @@
-//Csomagokat behozzuk
-const express = require('express')
-const mssql = require('mssql')
-const config = require('../config')
-const jwt = require('jsonwebtoken')
+const express = require('express');
+const mssql = require('mssql');
+const config = require('../config');
+const jwt = require('jsonwebtoken');
 
-const jwt_secretKey = process.env.JWT_SECRET
+const jwt_secretKey = process.env.JWT_SECRET;
+const router = express.Router();
 
-const router = express.Router()
-
-//JWT Middleware réteg
-//
 const authenticationToken = (req, res, next) => {
-    const authHeader = req.headers['authorization']
-    const token = authHeader && authHeader.split(' ')[1]
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
 
     if(!token)
-        return res.status(401).json({success: false, error: "Bejelentkezés szükséges!"})
+        return res.status(401).json({success: false, error: "Bejelentkezés szükséges!"});
     
     jwt.verify(token, jwt_secretKey, (err, decoded) => {
         if(err)
-            return res.status(403).json({success: false, error: "Érvénytelen vagy lejárt token!"})
+            return res.status(403).json({success: false, error: "Érvénytelen vagy lejárt token!"});
+        req.user = decoded;
+        next();
+    });
+};
 
-        //Ha minden oké, akkor adjuk át a dekódolt adatokat és mehet tovább
-        req.user = decoded
-        next()
-    })
-}
-
+// GET: Fetch Sales History (Now supports Multi-Store AND Date Filtering!)
 router.get('/History', authenticationToken, async (req, res) => {
-    let pool;
     try {
-        const { AuthLv, UserId } = req.user;
+        const { AuthLv, FranchiseId, StoreId } = req.user;
 
-        // Check permissions
         if (AuthLv > 4) {
             return res.status(403).json({ success: false, error: "Ehhez a művelethez nincs jogosultságod!!" });
         }
 
-        pool = await mssql.connect(config);
+        // Determine target store (fallback to user's home store)
+        const targetStoreId = req.query.storeId ? parseInt(req.query.storeId) : StoreId;
+        
+        // Grab optional date filters from the URL
+        const { startDate, endDate } = req.query;
 
-        // Clean, simple query. No confusing date filters.
-        // The ORDER BY Sales.TimeSold DESC guarantees newest is on top.
-        const result = await pool.request()
-            .input('UserId', mssql.Int, UserId)
-            .query(`
-                SELECT 
-                    Sales.Id,
-                    Sales.TimeSold, 
-                    Sales.Quantity, 
-                    Sales.PriceAtSale, 
-                    Sales.PaymentMethod,
-                    ProductName = Product.Name, 
-                    ProductBrand = Product.Brand,
-                    SellerName = Employee.Name, 
-                    CategoryName = ProductCategory.Name
-                FROM Sales
-                INNER JOIN StoreInventory ON Sales.InventoryId = StoreInventory.Id
-                INNER JOIN Product ON StoreInventory.ProductId = Product.Id
-                INNER JOIN ProductCategory ON Product.CategoryId = ProductCategory.Id
-                INNER JOIN Employee ON Sales.EmployeeId = Employee.Id
-                WHERE Employee.StoreId = (SELECT StoreId FROM Employee WHERE Id = @UserId)
-                ORDER BY Sales.TimeSold DESC
-            `);
+        const pool = await mssql.connect(config);
 
+        // SECURITY: Verify the requested store belongs to their franchise
+        const storeCheck = await pool.request()
+            .input('TargetStoreId', mssql.Int, targetStoreId)
+            .input('MyFranchiseId', mssql.Int, FranchiseId)
+            .query(`SELECT Id FROM Store WHERE Id = @TargetStoreId AND FranchiseId = @MyFranchiseId`);
+
+        if (storeCheck.recordset.length === 0) {
+            return res.status(403).json({ success: false, error: "Nincs jogosultságod ehhez a bolthoz!" });
+        }
+
+        // Build the query dynamically
+        let queryStr = `
+            SELECT 
+                Sales.Id,
+                Sales.TimeSold, 
+                Sales.Quantity, 
+                Sales.PriceAtSale, 
+                Sales.PaymentMethod,
+                ProductName = Product.Name, 
+                ProductBrand = Product.Brand,
+                SellerName = Employee.Name, 
+                CategoryName = ProductCategory.Name
+            FROM Sales
+            INNER JOIN StoreInventory ON Sales.InventoryId = StoreInventory.Id
+            INNER JOIN Product ON StoreInventory.ProductId = Product.Id
+            INNER JOIN ProductCategory ON Product.CategoryId = ProductCategory.Id
+            INNER JOIN Employee ON Sales.EmployeeId = Employee.Id
+            WHERE StoreInventory.StoreId = @TargetStoreId
+            AND Sales.IsDeleted = 0
+        `;
+
+        const request = pool.request().input('TargetStoreId', mssql.Int, targetStoreId);
+
+        // If the frontend passed dates, add the filter! (Resolves the "WTF" route)
+        if (startDate && endDate) {
+            queryStr += ` AND CAST(Sales.TimeSold AS DATE) BETWEEN @StartDate AND @EndDate`;
+            request.input('StartDate', mssql.Date, startDate);
+            request.input('EndDate', mssql.Date, endDate);
+        }
+
+        queryStr += ` ORDER BY Sales.TimeSold DESC`;
+
+        const result = await request.query(queryStr);
         res.status(200).json({ success: true, data: result.recordset });
     } catch(err) {
-        console.error("History Fetch Error:", err); // Added this so you can see if SQL fails!
+        console.error("History Fetch Error:", err);
         res.status(500).json({ success: false, error: "Szerver hiba történt!" });
-    } finally {
-        if (pool) await pool.close();
     }
 });
 
+// GET: Fetch Inventory for the Cash Register
 router.get('/Inventory', authenticationToken, async (req, res) => {
-    let pool;
     try {
-        pool = await mssql.connect(config);
+        const { FranchiseId, StoreId } = req.user;
+        const targetStoreId = req.query.storeId ? parseInt(req.query.storeId) : StoreId;
+
+        const pool = await mssql.connect(config);
+
+        // SECURITY: Verify store ownership
+        const storeCheck = await pool.request()
+            .input('TargetStoreId', mssql.Int, targetStoreId)
+            .input('MyFranchiseId', mssql.Int, FranchiseId)
+            .query(`SELECT Id FROM Store WHERE Id = @TargetStoreId AND FranchiseId = @MyFranchiseId`);
+
+        if (storeCheck.recordset.length === 0) {
+            return res.status(403).json({ success: false, error: "Érvénytelen bolt!" });
+        }
+
         const result = await pool.request()
-            .input('UserId', mssql.Int, req.user.UserId)
+            .input('TargetStoreId', mssql.Int, targetStoreId)
             .query(`
                 SELECT 
                     si.Id as InventoryId, 
                     si.Stock,
-                    si.Price, -- Explicitly taking Price from StoreInventory
+                    si.Price,
                     p.Name, 
                     p.Brand
                 FROM StoreInventory si
                 LEFT JOIN Product p ON si.ProductId = p.Id
-                WHERE si.StoreId = (SELECT StoreId FROM Employee WHERE Id = @UserId)
+                WHERE si.StoreId = @TargetStoreId
                 AND si.Stock > 0 
                 ORDER BY p.Brand, p.Name
             `);
 
         res.status(200).json({ success: true, data: result.recordset });
     } catch (err) {
-        console.error("Inventory Fetch Error:", err); // This is what showed us the 'Price' error!
+        console.error("Inventory Fetch Error:", err);
         res.status(500).json({ success: false, error: "Hiba a termékek betöltésekor!" });
-    } finally {
-        if (pool) await pool.close();
     }
 });
 
@@ -107,16 +135,23 @@ router.post('/Add', authenticationToken, async (req, res) => {
     try {
         const { inventoryId, quantity, paymentMethod } = req.body;
         const employeeId = req.user.UserId;
+        const myFranchiseId = req.user.FranchiseId;
 
         pool = await mssql.connect(config);
 
-        // 1. Get the current price and stock (Using 'Stock' instead of 'Quantity')
+        // 1. Get current price, stock, AND verify the item belongs to their franchise!
         const itemRes = await pool.request()
             .input('InventoryId', mssql.Int, inventoryId)
-            .query(`SELECT Price, Stock FROM StoreInventory WHERE Id = @InventoryId`);
+            .input('MyFranchiseId', mssql.Int, myFranchiseId)
+            .query(`
+                SELECT si.Price, si.Stock 
+                FROM StoreInventory si
+                INNER JOIN Store s ON si.StoreId = s.Id
+                WHERE si.Id = @InventoryId AND s.FranchiseId = @MyFranchiseId
+            `);
 
         if (itemRes.recordset.length === 0) {
-            return res.status(404).json({ success: false, error: "Termék nem található!" });
+            return res.status(404).json({ success: false, error: "Termék nem található, vagy nincs jogosultságod!" });
         }
 
         const { Price, Stock } = itemRes.recordset[0];
@@ -145,8 +180,6 @@ router.post('/Add', authenticationToken, async (req, res) => {
     } catch (err) {
         if (pool) await pool.request().query('ROLLBACK TRANSACTION').catch(() => {});
         res.status(500).json({ success: false, error: err.message });
-    } finally {
-        if (pool) await pool.close();
     }
 });
 
@@ -155,15 +188,27 @@ router.delete('/:id', authenticationToken, async (req, res) => {
     let pool;
     try {
         const saleId = req.params.id;
+        const myFranchiseId = req.user.FranchiseId;
+        
         pool = await mssql.connect(config);
 
-        // 1. Find the sale to know how much stock to return
-        const saleCheck = await pool.request()
+        // 1. Find the sale AND verify it happened in a store owned by their franchise
+        await pool.request()
             .input('SaleId', mssql.Int, saleId)
-            .query(`SELECT InventoryId, Quantity FROM Sales WHERE Id = @SaleId`);
+            .input('InventoryId', mssql.Int, InventoryId)
+            .input('Quantity', mssql.Int, Quantity)
+            .query(`
+                BEGIN TRANSACTION;
+                -- Put the items back on the shelf
+                UPDATE StoreInventory SET Stock = Stock + @Quantity WHERE Id = @InventoryId;
+                
+                -- SOFT DELETE: Mark as voided instead of deleting the record entirely!
+                UPDATE Sales SET IsDeleted = 1 WHERE Id = @SaleId; 
+                COMMIT TRANSACTION;
+            `);
 
         if (saleCheck.recordset.length === 0) {
-            return res.status(404).json({ success: false, error: "Eladás nem található!" });
+            return res.status(404).json({ success: false, error: "Eladás nem található, vagy nincs jogosultságod törölni!" });
         }
 
         const { InventoryId, Quantity } = saleCheck.recordset[0];
@@ -175,9 +220,7 @@ router.delete('/:id', authenticationToken, async (req, res) => {
             .input('Quantity', mssql.Int, Quantity)
             .query(`
                 BEGIN TRANSACTION;
-                -- Put the items back on the shelf
                 UPDATE StoreInventory SET Stock = Stock + @Quantity WHERE Id = @InventoryId;
-                -- Delete the record
                 DELETE FROM Sales WHERE Id = @SaleId;
                 COMMIT TRANSACTION;
             `);
@@ -186,64 +229,7 @@ router.delete('/:id', authenticationToken, async (req, res) => {
     } catch (err) {
         if (pool) await pool.request().query('ROLLBACK TRANSACTION').catch(() => {});
         res.status(500).json({ success: false, error: err.message });
-    } finally {
-        if (pool) await pool.close();
     }
 });
 
-//WTF IS THIS SUPPOSED TO BE??!!??!??!??!??!??!??!??!??!??!??!??!??!??!??!??!??!?!
-/*
-router.get('/Historyidk?', authenticationToken, async (req, res) => {
-    try{
-        const {AuthLv, UserId} = req.user
-        // Query paraméterek: ?startDate=2023-10-01&endDate=2023-10-31
-        let { startDate, endDate } = req.query;
-        
-        if (AuthLv > 4) {
-            return res.status(403).json({ success: false, error: "Ehhez a művelethez nincs jogosultságod!!" });
-        }
-        
-        if (!startDate) {
-            startDate = new Date().toISOString().split('T')[0]; // Csak a dátum rész: YYYY-MM-DD
-        }
-        if (!endDate) {
-            endDate = startDate; // Ugyanaz a nap
-        }
-        
-        const pool = await mssql.connect(config)
-
-        const result = pool.request()
-            .input('UserId', mssql.Int, UserId)
-            .input('StartDate', mssql.Date, startDate)
-            .input('EndDate', mssql.Date, endDate)
-            .query(`
-            SELECT 
-            Sales.TimeSold,
-            Sales.Quantity,
-            Sales.PriceAtSale,
-            Sales.PaymentMethod,
-            ProductName = Product.Name,
-            ProductBrand = Product.Brand,
-            SellerName = Employee.Name,
-            CategoryName = ProductCategory.Name
-            FROM Sales
-            INNER JOIN StoreInventory ON Sales.InventoryId = StoreInventory.Id
-            INNER JOIN Product ON StoreInventory.ProductId = Product.Id
-            INNER JOIN ProductCategory ON Product.CategoryId = ProductCategory.Id
-            INNER JOIN Employee ON Sales.EmployeeId = Employee.Id
-            WHERE Employee.StoreId = (SELECT StoreId FROM Employee WHERE Id = @UserId)
-            AND Sales.TimeSold BETWEEN @StartDate AND @EndDate 
-                ORDER BY Sales.TimeSold DESC
-                `)
-                
-                res.status(200).json({ success: true, data: result.recordset });
-    }
-    catch(err){
-        res.status(500).json({success: true, message: "Szerver hiba történt!"})
-    }
-    finally{
-        if (pool) await pool.close()
-    }
-    })
-*/ 
-module.exports = router
+module.exports = router;

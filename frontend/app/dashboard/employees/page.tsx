@@ -1,8 +1,12 @@
 'use client';
 import React, { useState, useEffect } from 'react';
-import { Search, Plus, Mail, Shield, User, Loader2, X, MapPin, RefreshCw, Trash2, Pencil, Phone } from 'lucide-react';
+import { Search, Plus, Mail, Store, User, Loader2, X, ChevronDown, RefreshCw, Trash2, Pencil, Phone } from 'lucide-react';
 
 export default function EmployeesPage() {
+  const [stores, setStores] = useState<any[]>([]);
+  const [selectedStoreId, setSelectedStoreId] = useState<string>('');
+
+  const [currentUserId, setCurrentUserId] = useState<number | null>(null);
   const [employees, setEmployees] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -63,23 +67,78 @@ export default function EmployeesPage() {
     setIsModalOpen(true);
   };
 
+  // 1. Fetch Stores on Page Load AND get the logged-in User's ID
   useEffect(() => {
-    const fetchEmployees = async () => {
+    const fetchStores = async () => {
       try {
         const token = localStorage.getItem('token');
-        const res = await fetch('http://localhost:5000/api/employees/List', {
+        if (!token) return;
+
+        // --- NEW: Decode the token to find out who is logged in! ---
+        try {
+          // A JWT token has 3 parts separated by dots. The middle part ([1]) has the data.
+          // 'atob' decrypts it so we can read the UserId inside!
+          const payload = JSON.parse(atob(token.split('.')[1]));
+          if (payload.UserId) {
+            setCurrentUserId(Number(payload.UserId));
+          }
+        } catch (e) {
+          console.error("Nem sikerült dekódolni a tokent.");
+        }
+        // ------------------------------------------------------------
+
+        const res = await fetch('http://localhost:5000/api/employees/my-stores', {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         const json = await res.json();
-        if (res.ok && json.success) setEmployees(json.data);
+        
+        if (json.success || Array.isArray(json)) {
+          const storeData = json.data || json; 
+          setStores(storeData);
+          
+          // Automatically trigger the employee fetch by setting the ID!
+          if (storeData.length > 0) {
+            setSelectedStoreId(storeData[0].Id.toString());
+          }
+        }
       } catch (err) {
-        setError('Could not connect to server.');
+        console.error("Hiba a boltok betöltésekor:", err);
+      }
+    };
+
+    fetchStores();
+  }, []);
+
+  // 2. Fetch Employees WHENEVER the selected store changes
+  useEffect(() => {
+    const fetchEmployees = async () => {
+      // Don't fetch if the store hasn't been set yet
+      if (!selectedStoreId) return;
+
+      setLoading(true);
+      setError('');
+      try {
+        const token = localStorage.getItem('token');
+        const res = await fetch(`http://localhost:5000/api/employees/List?storeId=${selectedStoreId}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const json = await res.json();
+        
+        if (res.ok && json.success) {
+           setEmployees(json.data);
+        } else {
+           setError('Nem sikerült betölteni az alkalmazottakat.');
+        }
+      } catch (err) {
+        console.error("Hiba az alkalmazottak betöltésekor:", err);
+        setError('Hálózati hiba történt.');
       } finally {
         setLoading(false);
       }
     };
+
     fetchEmployees();
-  }, []);
+  }, [selectedStoreId]); 
 
   const filteredEmployees = employees.filter(emp => {
     const name = emp?.Name || '';
@@ -103,13 +162,15 @@ export default function EmployeesPage() {
       const res = await fetch(url, {
         method: method,
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify(newEmployee)
+        // IMPORTANT: We also need to send the selectedStoreId when creating a new employee
+        // so they get assigned to the currently viewed store!
+        body: JSON.stringify({ ...newEmployee, storeId: selectedStoreId }) 
       });
       const json = await res.json();
       
       if (json.success) {
         if (!isEditMode) {
-           alert(`Success! Please give the new employee this temporary password: ${newEmployee.password}`);
+           alert(`Sikeres! Az új alkalmazott ideiglenes jelszava: ${newEmployee.password}`);
         }
         setIsModalOpen(false); 
         window.location.reload(); 
@@ -117,7 +178,7 @@ export default function EmployeesPage() {
         alert(json.error); 
       }
     } catch (err) {
-      alert("Failed to connect to the server.");
+      alert("Nem sikerült kapcsolódni a szerverhez.");
     }
   };
 
@@ -127,7 +188,7 @@ export default function EmployeesPage() {
     try {
       const token = localStorage.getItem('token');
       const res = await fetch(`http://localhost:5000/api/employees/${employeeId}`, {
-        method: 'UPDATE',
+        method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const json = await res.json();
@@ -137,11 +198,11 @@ export default function EmployeesPage() {
         alert(json.error);
       }
     } catch (err) {
-      alert("Failed to delete.");
+      alert("Nem sikerült törölni a dolgozót.");
     }
   };
 
-const getAuthBadge = (level: number) => {
+  const getAuthBadge = (level: number) => {
     if (level === 1) return <span className="text-xs font-bold text-red-400 uppercase tracking-wider block mb-1">Tulajdonos</span>;
     if (level <= 2) return <span className="text-xs font-bold text-purple-400 uppercase tracking-wider block mb-1">Üzletvezető</span>;
     return <span className="text-xs font-bold text-blue-400 uppercase tracking-wider block mb-1">Eladó</span>;
@@ -149,8 +210,34 @@ const getAuthBadge = (level: number) => {
 
   return (
     <div className="flex-1 p-8 w-full max-w-7xl mx-auto relative min-h-full">
+      
+      {/* HEADER SECTION */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
         
+        <div className="flex flex-col sm:flex-row sm:items-center gap-6">
+          
+          
+          {/* The Dropdown UI */}
+          {stores.length > 0 && (
+            <div className="relative group">
+              <div className="flex items-center bg-slate-800/80 hover:bg-slate-700 border border-slate-700 rounded-xl px-4 py-2.5 transition-all cursor-pointer">
+                <Store className="w-5 h-5 text-blue-400 mr-3 shrink-0" />
+                <select 
+                  value={selectedStoreId} 
+                  onChange={(e) => setSelectedStoreId(e.target.value)}
+                  className="bg-transparent text-white font-medium focus:outline-none appearance-none pr-8 cursor-pointer w-full min-w-[160px]"
+                >
+                  {stores.map(store => (
+                    <option key={store.Id} value={store.Id} className="bg-slate-800 text-white">
+                      {store.Name}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="w-4 h-4 text-slate-400 absolute right-4 pointer-events-none group-hover:text-white transition-colors" />
+              </div>
+            </div>
+          )}
+        </div>
 
         <div className="flex items-center gap-4 w-full md:w-auto">
           <div className="flex items-center bg-slate-900/50 border border-slate-800 rounded-xl px-4 w-full md:w-80 focus-within:ring-2 focus-within:ring-blue-500/50 transition-all">
@@ -187,9 +274,7 @@ const getAuthBadge = (level: number) => {
                 {/* Top Section */}
                 <div className="flex justify-between items-start mb-4">
                   <div>
-                    <span className="text-xs font-bold uppercase tracking-wider text-blue-400 mb-1 block">
-                      {emp.AuthLv === 1 ? 'Tulajdonos' : emp.AuthLv === 2 ? 'Üzletvezető' : 'Eladó'}
-                    </span>
+                    {getAuthBadge(emp.AuthLv)}
                     <h3 className="text-lg font-bold text-white leading-tight">
                       {emp.Name}
                     </h3>
@@ -204,17 +289,20 @@ const getAuthBadge = (level: number) => {
                     >
                       <Pencil className="w-5 h-5" />
                     </button>
-                    <button 
-                      onClick={() => handleDeleteEmployee(emp.Id)} 
-                      className="text-slate-500 hover:text-red-400 transition-colors"
-                      title="Alkalmazott Törlése"
-                    >
-                      <Trash2 className="w-5 h-5" />
-                    </button>
+                    {/* NEW: Only show Delete if it's NOT the logged-in user */}
+                    {emp.Id !== currentUserId && (
+                      <button 
+                        onClick={() => handleDeleteEmployee(emp.Id)} 
+                        className="text-slate-500 hover:text-red-400 transition-colors"
+                        title="Alkalmazott Törlése"
+                      >
+                        <Trash2 className="w-5 h-5" />
+                      </button>
+                    )}
                   </div>
                 </div>
 
-                {/* Bottom Section with the exact same divider and spacing */}
+                {/* Bottom Section */}
                 <div className="space-y-2 pt-4 border-t border-slate-800/50">
                   <div className="flex items-center text-sm text-slate-400">
                     <Mail className="w-4 h-4 mr-2" /> {emp.Email}
@@ -231,6 +319,7 @@ const getAuthBadge = (level: number) => {
         </div>
       )}
 
+      {/* MODAL */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto">
           <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-md p-6 shadow-2xl relative my-8">
