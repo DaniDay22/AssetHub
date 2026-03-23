@@ -49,8 +49,8 @@ router.get('/All', authenticationToken, async (req, res) => {
             .query(`
             SELECT
                 SI.Id,
-                P.Name,
-                PC.Name,
+                P.Name as 'PName',
+                PC.Name as 'PCName',
                 P.Brand,
                 P.Unit,
                 SI.Price,

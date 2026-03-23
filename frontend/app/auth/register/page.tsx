@@ -39,7 +39,7 @@ export default function RegisterPage() {
 
       if (res.ok && data.success) {
         alert("Sikeres regisztráció! Kérjük, jelentkezz be.");
-        router.push('/login'); // Changed to match your anchor tag below
+        router.push('/auth/login'); // Changed to match your anchor tag below
       } else {
         setError(data.error || "A regisztráció sikertelen volt.");
       }
