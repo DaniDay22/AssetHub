@@ -255,15 +255,15 @@ router.post('/Login', async (req, res) => {
 
 //Jelszó változtatás fiókokra
 router.patch('/UpdatePassword', authenticationToken, async (req, res) => {
+    let pool; // <-- FIXED: Added this so the finally block doesn't crash!
     try {
-        // 1. Grab BOTH passwords from the frontend request
-        const { currentPassword, newPassword } = req.body;
+        // 1. Grab BOTH passwords from the frontend request (Matched to frontend state)
+        const { oldPassword, newPassword } = req.body;
         
         // 2. Extract the ID securely from your JWT middleware
-        // (Note: Check if your token payload uses 'Id' or 'UserId')
         const userId = req.user.Id || req.user.UserId; 
 
-        if (!currentPassword || !newPassword) {
+        if (!oldPassword || !newPassword) {
             return res.status(400).json({ success: false, error: "Kérlek add meg a jelenlegi és az új jelszót is!" });
         }
 
@@ -280,9 +280,9 @@ router.patch('/UpdatePassword', authenticationToken, async (req, res) => {
 
         const user = userRes.recordset[0];
 
-        // 4. Compare the typed 'currentPassword' with the one in the database
+        // 4. Compare the typed 'oldPassword' with the one in the database
         const storedPass = user.Password.toString('utf-8');
-        const isMatch = await bcrypt.compare(currentPassword, storedPass);
+        const isMatch = await bcrypt.compare(oldPassword, storedPass);
 
         if (!isMatch) {
             return res.status(401).json({ success: false, error: "A jelenlegi jelszó helytelen." });

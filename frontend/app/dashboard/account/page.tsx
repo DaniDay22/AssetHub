@@ -1,7 +1,8 @@
 'use client';
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { User, Mail, Phone, Shield, Building2, Save, Loader2, KeyRound } from 'lucide-react';
+// Added the 'X' icon for the modal close button!
+import { User, Mail, Phone, Shield, Building2, Save, Loader2, KeyRound, X } from 'lucide-react';
 
 export default function AccountPage() {
   const { user } = useAuth(); // Decoded JWT payload
@@ -13,6 +14,16 @@ export default function AccountPage() {
   
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ text: '', type: '' });
+  
+  // Jelszó módosítás state
+  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
+  const [passwordData, setPasswordData] = useState({
+    oldPassword: '',
+    newPassword: '',
+    confirmPassword: ''
+  });
+  const [passLoading, setPassLoading] = useState(false);
+  const [passMessage, setPassMessage] = useState({ text: '', type: '' });
 
   // Sync form with user data once loaded
   useEffect(() => {
@@ -51,6 +62,46 @@ export default function AccountPage() {
       setMessage({ text: 'Nem sikerült kapcsolódni a szerverhez.', type: 'error' });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handlePasswordChange = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPassMessage({ text: '', type: '' });
+
+    if (passwordData.newPassword !== passwordData.confirmPassword) {
+      return setPassMessage({ text: 'Az új jelszavak nem egyeznek!', type: 'error' });
+    }
+
+    setPassLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      // Make sure this URL matches where you put the backend route!
+      const res = await fetch('http://localhost:5000/api/Auth/UpdatePassword', {
+        method: 'PATCH',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}` 
+        },
+        body: JSON.stringify({
+          oldPassword: passwordData.oldPassword,
+          newPassword: passwordData.newPassword
+        })
+      });
+
+      const json = await res.json();
+
+      if (json.success) {
+        setPassMessage({ text: 'Jelszó sikeresen megváltoztatva!', type: 'success' });
+        setPasswordData({ oldPassword: '', newPassword: '', confirmPassword: '' });
+        setTimeout(() => setIsPasswordModalOpen(false), 2000); // Close after 2 seconds
+      } else {
+        setPassMessage({ text: json.error || 'Hiba történt.', type: 'error' });
+      }
+    } catch (err) {
+      setPassMessage({ text: 'Hálózati hiba.', type: 'error' });
+    } finally {
+      setPassLoading(false);
     }
   };
 
@@ -169,7 +220,10 @@ export default function AccountPage() {
                   <h3 className="text-lg font-bold text-white">Jelszó Módosítása</h3>
                   <p className="text-sm text-slate-400 mt-1">Javasolt a biztonság érdekében rendszeresen frissíteni.</p>
                 </div>
-                <button className="flex items-center px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white rounded-lg transition-colors">
+                <button 
+                  onClick={() => { setIsPasswordModalOpen(true); setPassMessage({ text: '', type: '' }); }}
+                  className="flex items-center px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white rounded-lg transition-colors"
+                >
                   <KeyRound className="w-4 h-4 mr-2" />
                   Módosítás
                 </button>
@@ -177,6 +231,66 @@ export default function AccountPage() {
           </div>
         </div>
       </div>
+
+      {/* PASSWORD MODAL */}
+      {isPasswordModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-md p-6 shadow-2xl relative">
+            <button 
+              onClick={() => setIsPasswordModalOpen(false)} 
+              className="absolute top-4 right-4 text-slate-400 hover:text-white transition-colors"
+            >
+              <X className="w-6 h-6" />
+            </button>
+
+            <h2 className="text-2xl font-bold text-white mb-6">Jelszó Módosítása</h2>
+
+            {passMessage.text && (
+              <div className={`p-3 mb-4 rounded-xl text-sm border ${passMessage.type === 'success' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-red-500/10 border-red-500/20 text-red-400'}`}>
+                {passMessage.text}
+              </div>
+            )}
+
+            <form onSubmit={handlePasswordChange} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-1">Jelenlegi jelszó</label>
+                <input 
+                  type="password" required 
+                  value={passwordData.oldPassword} 
+                  onChange={(e) => setPasswordData({...passwordData, oldPassword: e.target.value})} 
+                  className="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-blue-500" 
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-1">Új jelszó</label>
+                <input 
+                  type="password" required minLength={6}
+                  value={passwordData.newPassword} 
+                  onChange={(e) => setPasswordData({...passwordData, newPassword: e.target.value})} 
+                  className="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-blue-500" 
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-1">Új jelszó megerősítése</label>
+                <input 
+                  type="password" required minLength={6}
+                  value={passwordData.confirmPassword} 
+                  onChange={(e) => setPasswordData({...passwordData, confirmPassword: e.target.value})} 
+                  className="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-blue-500" 
+                />
+              </div>
+
+              <button 
+                type="submit" disabled={passLoading}
+                className="w-full flex justify-center items-center bg-blue-600 hover:bg-blue-500 text-white font-medium py-2.5 rounded-lg mt-4 transition-colors disabled:opacity-50"
+              >
+                {passLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : "Jelszó frissítése"}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

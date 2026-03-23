@@ -152,20 +152,27 @@ export default function EmployeesPage() {
     try {
       const token = localStorage.getItem('token');
       
-      // Determine if we are updating or creating
       const url = isEditMode 
         ? `http://localhost:5000/api/employees/${editingId}` 
-        : 'http://localhost:5000/api/employees';
+        : 'http://localhost:5000/api/employees/Add';
       
       const method = isEditMode ? 'PUT' : 'POST';
 
       const res = await fetch(url, {
         method: method,
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        // IMPORTANT: We also need to send the selectedStoreId when creating a new employee
-        // so they get assigned to the currently viewed store!
         body: JSON.stringify({ ...newEmployee, storeId: selectedStoreId }) 
       });
+      
+      // NEW: SAFETY CHECK
+      const contentType = res.headers.get("content-type");
+      if (!contentType || !contentType.includes("application/json")) {
+        const textError = await res.text();
+        console.error("Backend HTML Error:", textError);
+        alert("Szerver hiba! (Nézd meg a Node.js terminált a pontos hibáért!)");
+        return;
+      }
+
       const json = await res.json();
       
       if (json.success) {
@@ -178,7 +185,8 @@ export default function EmployeesPage() {
         alert(json.error); 
       }
     } catch (err) {
-      alert("Nem sikerült kapcsolódni a szerverhez.");
+      console.error(err);
+      alert("Hálózati hiba történt az adatok küldésekor.");
     }
   };
 

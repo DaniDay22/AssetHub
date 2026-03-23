@@ -71,7 +71,7 @@ router.get('/History', authenticationToken, async (req, res) => {
 
         const request = pool.request().input('TargetStoreId', mssql.Int, targetStoreId);
 
-        // If the frontend passed dates, add the filter! (Resolves the "WTF" route)
+        // If the frontend passed dates, add the filter! 
         if (startDate && endDate) {
             queryStr += ` AND CAST(Sales.TimeSold AS DATE) BETWEEN @StartDate AND @EndDate`;
             request.input('StartDate', mssql.Date, startDate);
@@ -169,8 +169,8 @@ router.post('/Add', authenticationToken, async (req, res) => {
             .input('PaymentMethod', mssql.NVarChar, paymentMethod)
             .query(`
                 BEGIN TRANSACTION;
-                INSERT INTO Sales (InventoryId, EmployeeId, TimeSold, Quantity, PriceAtSale, PaymentMethod)
-                VALUES (@InventoryId, @EmployeeId, GETDATE(), @Quantity, @TotalPrice, @PaymentMethod);
+                INSERT INTO Sales (InventoryId, EmployeeId, TimeSold, Quantity, PriceAtSale, PaymentMethod, IsDeleted)
+                VALUES (@InventoryId, @EmployeeId, GETDATE(), @Quantity, @TotalPrice, @PaymentMethod, 0);
 
                 UPDATE StoreInventory SET Stock = Stock - @Quantity WHERE Id = @InventoryId;
                 COMMIT TRANSACTION;
@@ -178,7 +178,7 @@ router.post('/Add', authenticationToken, async (req, res) => {
 
         res.status(200).json({ success: true });
     } catch (err) {
-        if (pool) await pool.request().query('ROLLBACK TRANSACTION').catch(() => {});
+        if (pool) await pool.request().query('IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION').catch(() => {});
         res.status(500).json({ success: false, error: err.message });
     }
 });
@@ -193,6 +193,24 @@ router.delete('/:id', authenticationToken, async (req, res) => {
         pool = await mssql.connect(config);
 
         // 1. Find the sale AND verify it happened in a store owned by their franchise
+        const saleCheck = await pool.request()
+            .input('SaleId', mssql.Int, saleId)
+            .input('MyFranchiseId', mssql.Int, myFranchiseId)
+            .query(`
+                SELECT Sales.InventoryId, Sales.Quantity 
+                FROM Sales
+                INNER JOIN StoreInventory ON Sales.InventoryId = StoreInventory.Id
+                INNER JOIN Store ON StoreInventory.StoreId = Store.Id
+                WHERE Sales.Id = @SaleId AND Store.FranchiseId = @MyFranchiseId
+            `);
+
+        if (saleCheck.recordset.length === 0) {
+            return res.status(404).json({ success: false, error: "Eladás nem található, vagy nincs jogosultságod törölni!" });
+        }
+
+        const { InventoryId, Quantity } = saleCheck.recordset[0];
+
+        // 2. Soft-Delete the sale AND return the stock in one atomic transaction
         await pool.request()
             .input('SaleId', mssql.Int, saleId)
             .input('InventoryId', mssql.Int, InventoryId)
@@ -207,28 +225,11 @@ router.delete('/:id', authenticationToken, async (req, res) => {
                 COMMIT TRANSACTION;
             `);
 
-        if (saleCheck.recordset.length === 0) {
-            return res.status(404).json({ success: false, error: "Eladás nem található, vagy nincs jogosultságod törölni!" });
-        }
-
-        const { InventoryId, Quantity } = saleCheck.recordset[0];
-
-        // 2. Delete the sale AND return the stock in one atomic transaction
-        await pool.request()
-            .input('SaleId', mssql.Int, saleId)
-            .input('InventoryId', mssql.Int, InventoryId)
-            .input('Quantity', mssql.Int, Quantity)
-            .query(`
-                BEGIN TRANSACTION;
-                UPDATE StoreInventory SET Stock = Stock + @Quantity WHERE Id = @InventoryId;
-                DELETE FROM Sales WHERE Id = @SaleId;
-                COMMIT TRANSACTION;
-            `);
-
         res.status(200).json({ success: true, message: "Eladás törölve, készlet visszaállítva!" });
     } catch (err) {
-        if (pool) await pool.request().query('ROLLBACK TRANSACTION').catch(() => {});
-        res.status(500).json({ success: false, error: err.message });
+        if (pool) await pool.request().query('IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION').catch(() => {});
+        console.error("Delete Sale Error:", err);
+        res.status(500).json({ success: false, error: "Szerver hiba történt az eladás törlésekor." });
     }
 });
 

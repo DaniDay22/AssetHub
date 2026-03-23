@@ -83,4 +83,5 @@ CREATE TABLE Sales (
     Quantity DECIMAL(18, 2) NOT NULL,
     FOREIGN KEY (InventoryId) REFERENCES StoreInventory(Id),
     FOREIGN KEY (EmployeeId) REFERENCES Employee(Id)
+    IsDeleted BIT NOT NULL DEFAULT 0;
 );

@@ -34,46 +34,59 @@ const authenticationToken = (req, res, next) => {
     })
 }
 
+// GET: Fetch all products for the SELECTED store
 router.get('/All', authenticationToken, async (req, res) => {
-    let pool;
-    try{
-        const {AuthLv, UserId} = req.user //Tokenből infó
+    try {
+        const { AuthLv, FranchiseId, StoreId } = req.user;
 
-        if(AuthLv == 4) //Még nem biztos hogy marad: Mindenki aki nem eladó letudja kérdezni
+        // Block level 4 (Cashiers) from the global product management page if needed
+        if (AuthLv == 4) {
             return res.status(403).json({ success: false, error: "Ehhez a művelethez nincs jogosultságod!" });
+        }
 
-        pool = await mssql.connect(config)
+        // 1. Grab the storeId from the URL (or fallback to the employee's home store)
+        const targetStoreId = req.query.storeId ? parseInt(req.query.storeId) : StoreId;
 
+        const pool = await mssql.connect(config);
+
+        // 2. SECURITY: Verify this store actually belongs to their Franchise
+        const storeCheck = await pool.request()
+            .input('TargetStoreId', mssql.Int, targetStoreId)
+            .input('MyFranchiseId', mssql.Int, FranchiseId)
+            .query(`SELECT Id FROM Store WHERE Id = @TargetStoreId AND FranchiseId = @MyFranchiseId`);
+
+        if (storeCheck.recordset.length === 0) {
+            return res.status(403).json({ success: false, error: "Nincs jogosultságod ehhez a bolthoz!" });
+        }
+
+        // 3. Fetch ONLY the inventory for that specific store!
         const result = await pool.request()
-            .input('UserId', mssql.Int, UserId)
+            .input('TargetStoreId', mssql.Int, targetStoreId)
             .query(`
-            SELECT
-                SI.Id,
-                P.Name as 'PName',
-                PC.Name as 'PCName',
-                P.Brand,
-                P.Unit,
-                SI.Price,
-                SI.Stock,
-                SI.Sold,
-                SI.Description
-            FROM StoreInventory SI
-            INNER JOIN Product P ON SI.ProductId = P.Id
-            INNER JOIN ProductCategory PC ON P.CategoryId = PC.Id
-            WHERE SI.StoreId = (SELECT StoreId FROM Employee WHERE Id = @UserId)
-            ORDER BY P.Name ASC
-            `)
+                SELECT
+                    SI.Id AS StoreInventoryId,
+                    P.Name AS ProductName,
+                    PC.Name AS CategoryName,
+                    P.Brand,
+                    P.Unit,
+                    SI.Price,
+                    SI.Stock,
+                    SI.Sold,
+                    SI.Description
+                FROM StoreInventory SI
+                INNER JOIN Product P ON SI.ProductId = P.Id
+                INNER JOIN ProductCategory PC ON P.CategoryId = PC.Id
+                WHERE SI.StoreId = @TargetStoreId
+                AND (SI.IsDeleted = 0 OR SI.IsDeleted IS NULL)
+                ORDER BY P.Brand ASC, P.Name ASC
+            `);
 
-        res.status(200).json({success: true, data: result.recordset})
+        res.status(200).json({ success: true, data: result.recordset });
+    } catch (err) {
+        console.error("Products Fetch ERROR:", err);
+        res.status(500).json({ success: false, message: "Szerver hiba történt a termékek betöltésekor!" });
     }
-    catch(err){
-        console.error("Fetch ERROR:", err)
-        res.status(500).json({success: false, message: "Szerver hiba történt!"})
-    }
-    finally{
-        if (pool) pool.close()
-    }
-})
+});
 
 router.post('/', authenticationToken, async (req, res) => {
     let pool;
@@ -131,14 +144,14 @@ router.post('/', authenticationToken, async (req, res) => {
 
                         -- Feltöltjük a bolt idézőjeles raktárába a terméket
                         INSERT INTO StoreInventory (StoreId, ProductId, Price, Currency, Stock, Description) VALUES
-                        (@StoreId, @ProductId, @Price, @Currency, @Stock, @Description)
+                        (@StoreId, @ProductId, @Price, @Currency, @Stock, @Description);
                         
                         COMMIT TRANSACTION;
-                    END TRY;
+                    END TRY
                     BEGIN CATCH
                         IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
                         THROW;
-                    END CATCH;
+                    END CATCH
                 `)
 
         res.status(201).json({success: true, message: "Termék sikeresen feltöltve!"})

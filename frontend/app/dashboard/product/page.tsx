@@ -89,7 +89,7 @@ export default function ProductsPage() {
     setIsSubmitting(true);
     try {
       const token = localStorage.getItem('token');
-      const res = await fetch('http://localhost:5000/api/StoreInvetory', {
+      const res = await fetch('http://localhost:5000/api/StoreInventory', { // <-- DOUBLE CHECK THIS URL!
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -98,20 +98,28 @@ export default function ProductsPage() {
         body: JSON.stringify(newProduct)
       });
       
+      // SAFETY CHECK: Did the server send back HTML instead of JSON?
+      const contentType = res.headers.get("content-type");
+      if (!contentType || !contentType.includes("application/json")) {
+        const textError = await res.text();
+        console.error("Backend returned HTML instead of JSON! Here is the page:", textError);
+        alert("Szerver hiba: A végpont nem található (404). Nézd meg a konzolt!");
+        setIsSubmitting(false);
+        return;
+      }
+
       const json = await res.json();
-      console.log(json)
       
       if (json.success) {
         setIsModalOpen(false); 
         // Reset form for next time
-        setNewProduct({ PName: '', Brand: '', PCName: '', Unit: 'db', Price: '', Currency: 'HUF', Stock: '', Description: '' });
+        setNewProduct({ PName: '', Brand: '', PCName: '', Unit: '', Price: '', Currency: 'HUF', Stock: '', Description: '' });
         window.location.reload(); 
       } else {
         alert(json.message || json.error || 'Hiba történt a mentés során!'); 
       }
     } catch (err) {
-      
-      alert(err.message+"Nem sikerült kapcsolódni a szerverhez.");
+      alert("Nem sikerült kapcsolódni a szerverhez.");
     } finally {
       setIsSubmitting(false);
     }
