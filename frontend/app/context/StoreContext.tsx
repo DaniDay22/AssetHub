@@ -1,16 +1,20 @@
 'use client';
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { useAuth } from './AuthContext';
+
 
 interface StoreContextType {
   stores: any[];
   selectedStoreId: string;
   setSelectedStoreId: (id: string) => void;
   loadingStores: boolean;
+  isOwner: boolean;
 }
 
 const StoreContext = createContext<StoreContextType | undefined>(undefined);
 
 export function StoreProvider({ children }: { children: ReactNode }) {
+  const { user } = useAuth(); // Get user info
   const [stores, setStores] = useState<any[]>([]);
   const [selectedStoreId, setSelectedStoreId] = useState<string>('');
   const [loadingStores, setLoadingStores] = useState(true);
@@ -54,12 +58,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     localStorage.setItem('lastSelectedStoreId', id);
   };
 
+    const isOwner = user?.AuthLv === 1 || user?.AuthLv === "1";
+    console.log("DEBUG -> User Level:", user?.AuthLv, "Type:", typeof user?.AuthLv, "isOwner:", isOwner);
   return (
     <StoreContext.Provider value={{ 
       stores, 
       selectedStoreId, 
       setSelectedStoreId: handleSetSelectedStore, 
-      loadingStores 
+      loadingStores,
+      isOwner
     }}>
       {children}
     </StoreContext.Provider>

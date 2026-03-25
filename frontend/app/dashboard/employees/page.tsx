@@ -2,11 +2,11 @@
 import React, { useState, useEffect } from 'react';
 import { useStores } from '../../context/StoreContext';
 import { Search, Plus, Mail, Store, User, Loader2, X, ChevronDown, RefreshCw, Trash2, Pencil, Phone } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
 
 export default function EmployeesPage() {
-  const { stores, selectedStoreId, setSelectedStoreId } = useStores();
-
-  const [currentUserId, setCurrentUserId] = useState<number | null>(null);
+  const { stores, selectedStoreId, setSelectedStoreId, isOwner } = useStores();
+  const { user } = useAuth();
   const [employees, setEmployees] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -175,6 +175,8 @@ export default function EmployeesPage() {
     return <span className="text-xs font-bold text-blue-400 uppercase tracking-wider block mb-1">Eladó</span>;
   };
 
+  console.log("ME:", user);
+
   return (
     <div className="flex-1 p-8 w-full max-w-7xl mx-auto relative min-h-full">
       
@@ -185,25 +187,33 @@ export default function EmployeesPage() {
           
           
           {/* The Dropdown UI */}
-          {stores.length > 0 && (
-            <div className="relative group">
-              <div className="flex items-center bg-slate-800/80 hover:bg-slate-700 border border-slate-700 rounded-xl px-4 py-2.5 transition-all cursor-pointer">
-                <Store className="w-5 h-5 text-blue-400 mr-3 shrink-0" />
-                <select 
-                  value={selectedStoreId} 
-                  onChange={(e) => setSelectedStoreId(e.target.value)}
-                  className="bg-transparent text-white font-medium focus:outline-none appearance-none pr-8 cursor-pointer w-full min-w-[160px]"
-                >
-                  {stores.map(store => (
-                    <option key={store.Id} value={store.Id} className="bg-slate-800 text-white">
-                      {store.Name}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown className="w-4 h-4 text-slate-400 absolute right-4 pointer-events-none group-hover:text-white transition-colors" />
-              </div>
-            </div>
-          )}
+          {isOwner && stores.length > 1 ? (
+                          <div className="relative group">
+                                        <div className="flex items-center bg-slate-800/80 hover:bg-slate-700 border border-slate-700 rounded-xl px-4 py-2.5 transition-all cursor-pointer">
+                                          <Store className="w-5 h-5 text-blue-400 mr-3 shrink-0" />
+                                          <select 
+                                            value={selectedStoreId} 
+                                            onChange={(e) => setSelectedStoreId(e.target.value)}
+                                            className="bg-transparent text-white font-medium focus:outline-none appearance-none pr-8 cursor-pointer w-full min-w-[160px]"
+                                          >
+                                            {stores.map(store => (
+                                              <option key={store.Id} value={store.Id} className="bg-slate-800 text-white">
+                                                {store.Name}
+                                              </option>
+                                            ))}
+                                          </select>
+                                          <ChevronDown className="w-4 h-4 text-slate-400 absolute right-4 pointer-events-none group-hover:text-white transition-colors" />
+                                        </div>
+                                      </div>
+                          ) : (
+                         // If not an owner, just show the Store Name as a static badge
+                          <div className="flex items-center bg-slate-800/40 border border-slate-700/50 rounded-xl px-4 py-2.5">
+                           <Store className="w-5 h-5 text-blue-400 mr-3" />
+                           <span className="text-white font-medium">
+                             {stores.find(s => s.Id.toString() === selectedStoreId)?.Name || 'Betöltés...'}
+                           </span>
+                              </div>
+                          )}
         </div>
 
         <div className="flex items-center gap-4 w-full md:w-auto">
@@ -257,7 +267,8 @@ export default function EmployeesPage() {
                       <Pencil className="w-5 h-5" />
                     </button>
                     {/* NEW: Only show Delete if it's NOT the logged-in user */}
-                    {emp.Id !== currentUserId && (
+                    
+                    {String(emp.Id) !== String(user?.UserId) && (
                       <button 
                         onClick={() => handleDeleteEmployee(emp.Id)} 
                         className="text-slate-500 hover:text-red-400 transition-colors"

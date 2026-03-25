@@ -4,7 +4,7 @@ import { useStores } from '../../context/StoreContext';
 import { ShoppingCart, PackageSearch, Plus, Search, Store, ChevronDown, Loader2, Tag, Hash, Archive, Pencil, Trash2, TrendingUp, FileUp, X, Save } from 'lucide-react';
 
 export default function ProductsPage() {
-  const { stores, selectedStoreId, setSelectedStoreId } = useStores();
+  const { stores, selectedStoreId, setSelectedStoreId, isOwner } = useStores();
   const [products, setProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -256,24 +256,33 @@ const handleSaveProduct = async (e: React.FormEvent) => {
       {/* HEADER */}
       <div className="flex flex-col gap-4 mb-8">
         
-        {/* TOP ROW: Store Switcher & Title */}
-        <div className="flex justify-between items-center">
-          {stores.length > 0 && (
-            <div className="relative group w-full sm:w-auto">
-              <div className="flex items-center bg-slate-800/80 hover:bg-slate-700 border border-slate-700 rounded-xl px-4 py-2.5 transition-all cursor-pointer">
-                <Store className="w-5 h-5 text-blue-400 mr-3 shrink-0" />
-                <select 
-                  value={selectedStoreId} 
-                  onChange={(e) => setSelectedStoreId(e.target.value)}
-                  className="bg-transparent text-white font-medium focus:outline-none appearance-none pr-8 cursor-pointer w-full min-w-[160px]"
-                >
-                  {stores.map(s => <option key={s.Id} value={s.Id} className="bg-slate-800">{s.Name}</option>)}
-                </select>
-                <ChevronDown className="w-4 h-4 text-slate-400 absolute right-4 pointer-events-none group-hover:text-white transition-colors" />
-              </div>
-            </div>
-          )}
-        </div>
+      {isOwner && stores.length > 1 ? (
+      <div className="relative group">
+                    <div className="flex items-center bg-slate-800/80 hover:bg-slate-700 border border-slate-700 rounded-xl px-4 py-2.5 transition-all cursor-pointer">
+                      <Store className="w-5 h-5 text-blue-400 mr-3 shrink-0" />
+                      <select 
+                        value={selectedStoreId} 
+                        onChange={(e) => setSelectedStoreId(e.target.value)}
+                        className="bg-transparent text-white font-medium focus:outline-none appearance-none pr-8 cursor-pointer w-full min-w-[160px]"
+                      >
+                        {stores.map(store => (
+                          <option key={store.Id} value={store.Id} className="bg-slate-800 text-white">
+                            {store.Name}
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronDown className="w-4 h-4 text-slate-400 absolute right-4 pointer-events-none group-hover:text-white transition-colors" />
+                    </div>
+                  </div>
+      ) : (
+     // If not an owner, just show the Store Name as a static badge
+      <div className="flex items-center bg-slate-800/40 border border-slate-700/50 rounded-xl px-4 py-2.5">
+       <Store className="w-5 h-5 text-blue-400 mr-3" />
+       <span className="text-white font-medium">
+         {stores.find(s => s.Id.toString() === selectedStoreId)?.Name || 'Betöltés...'}
+       </span>
+          </div>
+      )}
 
         {/* BOTTOM ROW: Search & Actions */}
         <div className="flex flex-col lg:flex-row gap-4 w-full">
