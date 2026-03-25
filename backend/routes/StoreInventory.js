@@ -317,19 +317,19 @@ router.delete('/', authenticationToken, async (req, res) => {
             .query(`
                 BEGIN TRANSACTION
                 BEGIN TRY
-                    -- FIX: Using the correct @StoreInventoryId variable here!
+                    -- Volt-e bármely eladásban ez a termék? Ha Igen...
                     IF EXISTS (SELECT 1 FROM Sales WHERE InventoryId = @StoreInventoryId)
                     BEGIN
-                        -- If it was ever sold, we only soft-delete
+                        -- Simán úgy teszünk, mintha kitörölnénk
                         UPDATE StoreInventory SET IsDeleted = 1 WHERE Id = @StoreInventoryId;
                     END
                     ELSE 
                     BEGIN
-                        -- If never sold, we can fully delete
+                        -- Teljesen töröljük ki
                         DELETE FROM StoreInventory WHERE Id = @StoreInventoryId;
                     END
 
-                    -- Clean up the product template if no other store is using it
+                    -- Sablonnal együtt, ha más bolt nem használja más bolt.
                     DELETE FROM Product 
                     WHERE Id = @currentProductId 
                     AND NOT EXISTS (SELECT 1 FROM StoreInventory WHERE ProductId = @currentProductId);
