@@ -293,6 +293,13 @@ router.delete('/', authenticationToken, async (req, res) => {
                         -- Volt-e bármely eladásban ez a termék? Ha Igen...
                         IF EXISTS (SELECT 1 FROM Sales WHERE InventoryId = @StoreInvId)
                         BEGIN
+                            -- Simán úgy teszünk, mintha kitörölnénk
+                            UPDATE StoreInventory
+                            SET IsDeleted = 1
+                            WHERE Id = @StoreInventoryId
+                        END;
+                        ELSE -- Ha nem...
+                        BEGIN
                             -- Teljesen töröljük ki
                             DELETE FROM StoreInventory WHERE Id = @StoreInventoryId;
                             
@@ -300,13 +307,6 @@ router.delete('/', authenticationToken, async (req, res) => {
                             DELETE FROM Product 
                             WHERE Id = @currentProductId 
                             AND NOT EXISTS (SELECT 1 FROM StoreInventory WHERE ProductId = @currentProductId);
-                        END;
-                        ELSE -- Ha nem...
-                        BEGIN
-                            -- Simán úgy teszünk, mintha kitörölnénk
-                            UPDATE StoreInventory
-                            SET IsDeleted = 1
-                            WHERE Id = @StoreInventoryId
                         END;
 
                         COMMIT TRANSACTION;
