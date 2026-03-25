@@ -1,10 +1,10 @@
 'use client';
 import React, { useState, useEffect } from 'react';
-import { Package, Plus, Search, Store, ChevronDown, Loader2, Tag, Hash, Archive, Pencil, Trash2, TrendingUp, FileUp, X, Save } from 'lucide-react';
+import { useStores } from '../../context/StoreContext';
+import { ShoppingCart, PackageSearch, Plus, Search, Store, ChevronDown, Loader2, Tag, Hash, Archive, Pencil, Trash2, TrendingUp, FileUp, X, Save } from 'lucide-react';
 
 export default function ProductsPage() {
-  const [stores, setStores] = useState<any[]>([]);
-  const [selectedStoreId, setSelectedStoreId] = useState<string>('');
+  const { stores, selectedStoreId, setSelectedStoreId } = useStores();
   const [products, setProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -12,7 +12,110 @@ export default function ProductsPage() {
   
   // MODAL STATE
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null); // Track which product we are editing
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // --- CSV UPLOAD STATE ---
+  const [isCsvModalOpen, setIsCsvModalOpen] = useState(false);
+  const [csvFile, setCsvFile] = useState<File | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [csvResult, setCsvResult] = useState<any>(null);
+
+  // --- LOW STOCK THRESHOLD STATE ---
+  const [lowStockThreshold, setLowStockThreshold] = useState<number>(10);
+
+  // 📥 DOWNLOAD CSV TEMPLATE (The Bulletproof Way)
+  const handleDownloadTemplate = async () => {
+    if (!selectedStoreId) return alert("Válassz ki egy boltot először!");
+    
+    try {
+      const token = localStorage.getItem('token');
+      
+      // DOUBLE CHECK THIS URL! Make sure 'api/products' matches where your partner put the GET route
+      const res = await fetch(`http://localhost:5000/api/StoreInventory/export-template/${selectedStoreId}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      if (!res.ok) throw new Error("Hiba a letöltéskor");
+      
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `keszlet_sablon_bolt_${selectedStoreId}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch(err) {
+      alert("Nem sikerült letölteni a sablont.");
+    }
+  };
+
+  // 🛒 DOWNLOAD SHOPPING LIST (LOW STOCK)
+  const handleDownloadShoppingList = async () => {
+    if (!selectedStoreId) return alert("Válassz ki egy boltot először!");
+    
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`http://localhost:5000/api/StoreInventory/export-template/${selectedStoreId}?threshold=${lowStockThreshold}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      if (!res.ok) {
+        // If it's a 404, the backend sent our "no low stock" message
+        if (res.status === 404) return alert("Minden rendben! Nincs alacsony készletű termék ebben a boltban.");
+        throw new Error("Hiba a letöltéskor");
+      }
+      
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `bevasarlista_bolt_${selectedStoreId}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch(err) {
+      alert("Nem sikerült letölteni a bevásárlólistát.");
+    }
+  };
+
+  // 📤 UPLOAD FILLED CSV
+  const handleUploadCsv = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!csvFile || !selectedStoreId) return;
+    
+    setIsUploading(true);
+    setCsvResult(null);
+
+    try {
+      const token = localStorage.getItem('token');
+      
+      // FormData is required for sending files in React!
+      const formData = new FormData();
+      formData.append('RestockFile', csvFile);
+      formData.append('StoreId', selectedStoreId); // Tell backend which store to restock!
+
+      const res = await fetch('http://localhost:5000/api/StoreInventory', {
+        method: 'PATCH',
+        headers: { 'Authorization': `Bearer ${token}` }, // Do NOT set Content-Type, browser handles it!
+        body: formData
+      });
+
+      const json = await res.json();
+      setCsvResult(json);
+      
+      if (json.stats && json.stats.success > 0) {
+        setTimeout(() => window.location.reload(), 3000); 
+      }
+    } catch (err) {
+      alert("Hálózati hiba a fájl feltöltésekor.");
+    } finally {
+      setIsUploading(false);
+    }
+  };
 
   // Matches your backend exactly: {PName, PCName, Brand, Unit, Price, Currency, Stock, Description}
   const [newProduct, setNewProduct] = useState({
@@ -26,24 +129,7 @@ export default function ProductsPage() {
     Description: ''
   });
 
-  // 1. Fetch Stores
-  useEffect(() => {
-    const fetchStores = async () => {
-      try {
-        const token = localStorage.getItem('token');
-        const res = await fetch('http://localhost:5000/api/employees/my-stores', {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        const json = await res.json();
-        if (json.success || Array.isArray(json)) {
-          const data = json.data || json;
-          setStores(data);
-          if (data.length > 0) setSelectedStoreId(data[0].Id.toString());
-        }
-      } catch (e) { console.error(e); }
-    };
-    fetchStores();
-  }, []);
+  
 
   // 2. Fetch Products for Store
   useEffect(() => {
@@ -83,45 +169,84 @@ export default function ProductsPage() {
            category.toLowerCase().includes(search);
   });
 
-  // SUBMIT NEW PRODUCT
-  const handleCreateProduct = async (e: React.FormEvent) => {
+const handleSaveProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
     try {
       const token = localStorage.getItem('token');
-      const res = await fetch('http://localhost:5000/api/StoreInventory', { // <-- DOUBLE CHECK THIS URL!
-        method: 'POST',
+      const method = editingId ? 'PUT' : 'POST';
+      
+      const bodyData = editingId 
+        ? { ...newProduct, StoreInvId: editingId, ProductId: products.find(p => p.StoreInventoryId === editingId)?.ProductId }
+        : { ...newProduct, StoreId: selectedStoreId };
+
+      const res = await fetch('http://localhost:5000/api/StoreInventory', {
+        method: method,
         headers: { 
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}` 
         },
-        body: JSON.stringify(newProduct)
+        body: JSON.stringify(bodyData)
       });
-      
-      // SAFETY CHECK: Did the server send back HTML instead of JSON?
-      const contentType = res.headers.get("content-type");
-      if (!contentType || !contentType.includes("application/json")) {
-        const textError = await res.text();
-        console.error("Backend returned HTML instead of JSON! Here is the page:", textError);
-        alert("Szerver hiba: A végpont nem található (404). Nézd meg a konzolt!");
-        setIsSubmitting(false);
-        return;
-      }
 
       const json = await res.json();
-      
       if (json.success) {
-        setIsModalOpen(false); 
-        // Reset form for next time
-        setNewProduct({ PName: '', Brand: '', PCName: '', Unit: '', Price: '', Currency: 'HUF', Stock: '', Description: '' });
-        window.location.reload(); 
+        setIsModalOpen(false);
+        setEditingId(null); // Reset after save
+        window.location.reload();
       } else {
-        alert(json.message || json.error || 'Hiba történt a mentés során!'); 
+        alert(json.message || "Hiba történt.");
       }
     } catch (err) {
-      alert("Nem sikerült kapcsolódni a szerverhez.");
+      alert("Szerver hiba.");
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  // 📝 Open Modal for Editing
+  const handleEditClick = (product: any) => {
+    setNewProduct({
+      PName: product.ProductName,
+      Brand: product.Brand,
+      PCName: product.CategoryName,
+      Unit: product.Unit,
+      Price: product.Price.toString(),
+      Currency: 'HUF',
+      Stock: product.Stock.toString(),
+      Description: product.Description || ''
+    });
+    setEditingId(product.StoreInventoryId); // This tells the modal we are in "Edit Mode"
+    setIsModalOpen(true);
+  };
+
+  // 🗑️ Delete Product with Confirmation
+  const handleDeleteProduct = async (storeInvId: number, productId: number) => {
+    if (!window.confirm("Biztosan törölni szeretnéd ezt a terméket?")) return;
+
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch('http://localhost:5000/api/StoreInventory', {
+        method: 'DELETE',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}` 
+        },
+        body: JSON.stringify({ 
+          StoreInvId: storeInvId, 
+          ProductId: productId 
+        })
+      });
+
+      const json = await res.json();
+      if (json.success) {
+        window.location.reload();
+      } else {
+        alert(json.message || "Hiba a törlés során.");
+      }
+    } catch (err) {
+      console.error("Delete error:", err);
+      alert("Hálózati hiba történt.");
     }
   };
 
@@ -129,12 +254,12 @@ export default function ProductsPage() {
     <div className="flex-1 p-8 w-full max-w-7xl mx-auto relative min-h-full">
       
       {/* HEADER */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
-        <div className="flex flex-col sm:flex-row sm:items-center gap-6">
-
-          {/* STORE SWITCHER */}
+      <div className="flex flex-col gap-4 mb-8">
+        
+        {/* TOP ROW: Store Switcher & Title */}
+        <div className="flex justify-between items-center">
           {stores.length > 0 && (
-            <div className="relative group">
+            <div className="relative group w-full sm:w-auto">
               <div className="flex items-center bg-slate-800/80 hover:bg-slate-700 border border-slate-700 rounded-xl px-4 py-2.5 transition-all cursor-pointer">
                 <Store className="w-5 h-5 text-blue-400 mr-3 shrink-0" />
                 <select 
@@ -150,8 +275,11 @@ export default function ProductsPage() {
           )}
         </div>
 
-        <div className="flex items-center gap-4 w-full md:w-auto">
-          <div className="flex items-center bg-slate-900/50 border border-slate-800 rounded-xl px-4 w-full md:w-80 focus-within:ring-2 focus-within:ring-blue-500/50 transition-all">
+        {/* BOTTOM ROW: Search & Actions */}
+        <div className="flex flex-col lg:flex-row gap-4 w-full">
+          
+          {/* SEARCH BAR (Expands fully) */}
+          <div className="flex-1 flex items-center bg-slate-900/50 border border-slate-800 rounded-xl px-4 focus-within:ring-2 focus-within:ring-blue-500/50 transition-all min-h-[48px]">
             <Search className="text-slate-500 w-5 h-5 shrink-0 mr-3" />
             <input
               type="text"
@@ -162,20 +290,52 @@ export default function ProductsPage() {
             />
           </div>
           
-          <button 
-            className="flex items-center justify-center bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600/30 border border-emerald-500/30 rounded-xl px-4 py-2.5 font-medium transition-colors"
-            title="CSV Készletfeltöltés"
-          >
-            <FileUp className="w-5 h-5" />
-          </button>
+          {/* ACTION BUTTONS (Stack on mobile, row on desktop) */}
+          <div className="flex flex-row flex-wrap sm:flex-nowrap gap-3 shrink-0">
+            
+            {/* CSV Upload */}
+            <button 
+              onClick={() => { setIsCsvModalOpen(true); setCsvResult(null); setCsvFile(null); }}
+              className="flex-1 sm:flex-none flex items-center justify-center bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600/30 border border-emerald-500/30 rounded-xl px-4 py-2.5 transition-colors min-h-[48px]"
+              title="CSV Készletfeltöltés"
+            >
+              <FileUp className="w-5 h-5" />
+            </button>
 
-          <button 
-            onClick={() => setIsModalOpen(true)}
-            className="flex items-center justify-center bg-blue-600 hover:bg-blue-500 text-white rounded-xl px-4 py-2.5 font-medium transition-colors"
-            title="Új termék"
-          >
-            <Plus className="w-6 h-6" />
-          </button>
+            {/* Shopping List Combo */}
+            <div className="flex-1 sm:flex-none flex items-center bg-orange-500/10 border border-orange-500/30 rounded-xl transition-colors focus-within:border-orange-500/60 focus-within:bg-orange-500/20 min-h-[48px]">
+              <div className="flex items-center px-3 border-r border-orange-500/30 h-full">
+                <span className="text-orange-400/80 text-sm font-medium mr-2 hidden sm:block">Határ:</span>
+                <input
+                  type="number"
+                  min="0"
+                  max="999"
+                  value={lowStockThreshold}
+                  onChange={(e) => setLowStockThreshold(parseInt(e.target.value) || 0)}
+                  className="w-10 sm:w-12 bg-transparent text-orange-400 font-bold focus:outline-none text-center"
+                  title="Készlet riasztási határ"
+                />
+              </div>
+              <button 
+                onClick={handleDownloadShoppingList}
+                className="flex items-center justify-center text-orange-400 hover:text-white hover:bg-orange-500 px-4 h-full rounded-r-xl transition-colors"
+                title="Bevásárlólista letöltése"
+              >
+                <ShoppingCart className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Add Product */}
+            <button 
+              onClick={() => setIsModalOpen(true)}
+              className="flex-1 sm:flex-none flex items-center justify-center bg-blue-600 hover:bg-blue-500 text-white rounded-xl px-4 py-2.5 font-medium transition-colors min-h-[48px]"
+              title="Új termék"
+            >
+              <Plus className="w-6 h-6 sm:mr-2" />
+              <span className="hidden sm:inline">Új termék</span>
+            </button>
+          </div>
+
         </div>
       </div>
 
@@ -244,10 +404,16 @@ export default function ProductsPage() {
                 </div>
                 
                 <div className="flex gap-3 mt-6 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
-                  <button className="flex-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white py-2 rounded-xl text-sm font-medium flex items-center justify-center gap-2 transition-colors">
+                  <button 
+                    onClick={() => handleEditClick(p)}
+                    className="flex-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white py-2 rounded-xl text-sm font-medium flex items-center justify-center gap-2 transition-colors"
+                  >
                     <Pencil size={16}/> Szerkesztés
                   </button>
-                  <button className="bg-red-500/10 hover:bg-red-500/20 border border-transparent hover:border-red-500/30 text-red-400 p-2.5 rounded-xl transition-all" title="Termék Törlése">
+                  <button
+                   onClick={() => handleDeleteProduct(p.StoreInventoryId, p.ProductId)}
+                   className="bg-red-500/10 hover:bg-red-500/20 border border-transparent hover:border-red-500/30 text-red-400 p-2.5 rounded-xl transition-all" title="Termék Törlése"
+                   >
                     <Trash2 size={18}/>
                   </button>
                 </div>
@@ -264,15 +430,21 @@ export default function ProductsPage() {
           <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-xl p-6 shadow-2xl relative my-8">
             
             <button 
-              onClick={() => setIsModalOpen(false)} 
+              onClick={() => {
+               setIsModalOpen(false);
+                setEditingId(null); // <--- Add this to reset the mode!
+                setNewProduct({ PName: '', Brand: '', PCName: '', Unit: 'db', Price: '', Currency: 'HUF', Stock: '', Description: '' });
+              }} 
               className="absolute top-4 right-4 text-slate-400 hover:text-white transition-colors"
             >
               <X className="w-6 h-6" />
             </button>
 
-            <h2 className="text-2xl font-bold text-white mb-6">Új termék hozzáadása</h2>
+            <h2 className="text-2xl font-bold text-white mb-6">
+              {editingId ? 'Termék szerkesztése' : 'Új termék hozzáadása'}
+            </h2>
 
-            <form onSubmit={handleCreateProduct} className="space-y-4">
+            <form onSubmit={handleSaveProduct} className="space-y-4">
               
               {/* Row 1: Termék neve és Márka */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -378,6 +550,81 @@ export default function ProductsPage() {
               </div>
 
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* CSV UPLOAD MODAL */}
+      {isCsvModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-lg p-6 shadow-2xl relative my-8">
+            
+            <button 
+              onClick={() => setIsCsvModalOpen(false)} 
+              className="absolute top-4 right-4 text-slate-400 hover:text-white transition-colors"
+            >
+              <X className="w-6 h-6" />
+            </button>
+
+            <h2 className="text-2xl font-bold text-white mb-2">Tömeges Készletfeltöltés</h2>
+            <p className="text-slate-400 text-sm mb-6">Fontos a sablon használata a feltöltéshez!</p>
+            <div className="p-4 bg-blue-500/10 border border-blue-500/20 rounded-xl mb-6 flex items-center justify-between">
+              <div>
+                <h4 className="text-white font-medium">1. Lépés: Sablon letöltése</h4>
+                <p className="text-xs text-blue-400 mt-1">A jelenleg kiválasztott bolt készletét tartalmazza.</p>
+              </div>
+              <button 
+                type="button"
+                onClick={handleDownloadTemplate}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium rounded-lg transition-colors"
+              >
+                Letöltés
+              </button>
+            </div>
+            
+
+            {/* Step 2: Upload Form */}
+            <form onSubmit={handleUploadCsv}>
+              <div className="mb-6">
+                <input 
+                  type="file" 
+                  accept=".csv"
+                  required
+                  onChange={(e) => setCsvFile(e.target.files ? e.target.files[0] : null)}
+                  className="w-full text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-emerald-500/10 file:text-emerald-400 hover:file:bg-emerald-500/20 cursor-pointer border border-slate-700 rounded-xl p-2 bg-slate-800"
+                />
+              </div>
+
+              {/* Upload Results Display */}
+              {csvResult && (
+                <div className={`mb-6 p-4 rounded-xl border ${csvResult.stats?.failed > 0 ? 'bg-orange-500/10 border-orange-500/20' : 'bg-emerald-500/10 border-emerald-500/20'}`}>
+                  <h4 className="text-white font-bold mb-2">{csvResult.message}</h4>
+                  <div className="flex gap-4 text-sm">
+                    <span className="text-slate-300">Összes: {csvResult.stats?.total}</span>
+                    <span className="text-emerald-400">Sikeres: {csvResult.stats?.success}</span>
+                    <span className="text-red-400">Sikertelen: {csvResult.stats?.failed}</span>
+                  </div>
+                  
+                  {/* Show specific errors if any rows failed */}
+                  {csvResult.errors && csvResult.errors.length > 0 && (
+                    <div className="mt-3 max-h-32 overflow-y-auto text-xs text-orange-300 space-y-1 bg-black/20 p-2 rounded">
+                      {csvResult.errors.map((err: any, i: number) => (
+                        <div key={i}>⚠️ {err.ProductName} - {err.ErrorReason}</div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <button 
+                type="submit" 
+                disabled={!csvFile || isUploading}
+                className="w-full flex justify-center items-center bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-700 disabled:text-slate-500 text-white font-medium py-3 rounded-xl transition-colors"
+              >
+                {isUploading ? <Loader2 className="w-5 h-5 animate-spin" /> : <> <FileUp className="w-5 h-5 mr-2"/> Feltöltés indítása </>}
+              </button>
+            </form>
+
           </div>
         </div>
       )}

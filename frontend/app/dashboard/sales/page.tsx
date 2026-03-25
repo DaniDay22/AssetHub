@@ -1,11 +1,10 @@
 'use client';
 import React, { useState, useEffect } from 'react';
+import { useStores } from '../../context/StoreContext';
 import { Search, Plus, CreditCard, Banknote, Clock, User, X, Loader2, Trash2, Store, ChevronDown } from 'lucide-react';
 
 export default function SalesFeedPage() {
-  // --- MULTI-STORE STATE ---
-  const [stores, setStores] = useState<any[]>([]);
-  const [selectedStoreId, setSelectedStoreId] = useState<string>('');
+  const { stores, selectedStoreId, setSelectedStoreId } = useStores();
 
   // --- SALES STATE ---
   const [sales, setSales] = useState<any[]>([]);
@@ -23,33 +22,6 @@ export default function SalesFeedPage() {
     paymentMethod: 'Készpénz' // Translated default
   });
 
-  // 1. Fetch Stores on Page Load
-  useEffect(() => {
-    const fetchStores = async () => {
-      try {
-        const token = localStorage.getItem('token');
-        if (!token) return;
-
-        const res = await fetch('http://localhost:5000/api/employees/my-stores', {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        const json = await res.json();
-        
-        if (json.success || Array.isArray(json)) {
-          const storeData = json.data || json; 
-          setStores(storeData);
-          
-          if (storeData.length > 0) {
-            setSelectedStoreId(storeData[0].Id.toString());
-          }
-        }
-      } catch (err) {
-        console.error("Hiba a boltok betöltésekor:", err);
-      }
-    };
-
-    fetchStores();
-  }, []);
 
   // 2. Fetch Sales WHENEVER the selected store changes
   useEffect(() => {

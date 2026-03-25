@@ -34,6 +34,58 @@ const authenticationToken = (req, res, next) => {
     })
 }
 
+// GET: Készlet feltöltő sablon letöltése (Excel-kompatibilis, win1250 kódolással)
+router.get('/export-template/:storeId', authenticationToken, async (req, res) => {
+    let pool;
+    try {
+        pool = await mssql.connect(config);
+
+        // 1. Lekérdezzük a kiválasztott bolt összes aktív termékét
+        const result = await pool.request()
+            .input('StoreId', mssql.Int, req.params.storeId)
+            .query(`
+                SELECT 
+                    S.Name AS StoreName,
+                    S.Address AS StoreAddress,
+                    P.Name AS ProductName,
+                    PC.Name AS CategoryName,
+                    P.Brand,
+                    P.Unit
+                FROM StoreInventory SI
+                JOIN Store S ON SI.StoreId = S.Id
+                JOIN Product P ON SI.ProductId = P.Id
+                JOIN ProductCategory PC ON P.CategoryId = PC.Id
+                WHERE SI.StoreId = @StoreId AND (SI.IsDeleted = 0 OR SI.IsDeleted IS NULL)
+            `);
+
+        // Ha véletlenül teljesen üres a bolt, akkor is adjunk vissza egy üres sablont fejlécekkel!
+        
+        // 2. Fejléc összeállítása (Pontosan az, amit az import útvonal vár, pontosvesszőkkel!)
+        let csvContent = "Bolt név;Bolt cím;Termék név;Termék kategória név;Márka;Egység;Hozzáadandó áru száma\n";
+
+        // 3. Sorok hozzáadása (A végén a 0 a hozzáadandó alapértelmezett mennyiség)
+        result.recordset.forEach(row => {
+            csvContent += `${row.StoreName};${row.StoreAddress};${row.ProductName};${row.CategoryName};${row.Brand};${row.Unit};0\n`;
+        });
+
+        // 4. Konvertálás Windows-1250-re (Hogy az Excel ne rontsa el a magyar ékezeteket!)
+        const buffer = iconv.encode(csvContent, 'win1250');
+
+        // 5. Header-ek beállítása a fájl letöltéshez
+        res.setHeader('Content-Type', 'text/csv; charset=windows-1250');
+        res.setHeader('Content-Disposition', `attachment; filename=keszlet_sablon_bolt_${req.params.storeId}.csv`);
+
+        // Fájl elküldése (Itt nem szabad res.json-t is küldeni, csak a buffert!)
+        res.send(buffer);
+
+    } catch (error) {
+        console.error("Template Export ERROR:", error);
+        res.status(500).json({success: false, message: "Hiba a sablon generálása közben!"});
+    } finally {
+        if (pool) pool.close();
+    }
+});
+
 // GET: Fetch all products for the SELECTED store
 router.get('/All', authenticationToken, async (req, res) => {
     try {
@@ -91,11 +143,15 @@ router.get('/All', authenticationToken, async (req, res) => {
 router.post('/', authenticationToken, async (req, res) => {
     let pool;
     try{
-        const {PName, PCName, Brand, Unit, Price, Currency, Stock, Description} = req.body
+        // 1. ADDED StoreId to the destructured body!
+        const {PName, PCName, Brand, Unit, Price, Currency, Stock, Description, StoreId} = req.body
         const {AuthLv, UserId} = req.user //Tokenből infó
 
         if(AuthLv == 4)
             return res.status(403).json({ success: false, error: "Ehhez a művelethez nincs jogosultságod!" });
+
+        // Fallback: If frontend didn't send a StoreId, use the user's default store
+        const targetStoreId = StoreId || req.user.StoreId;
 
         pool = await mssql.connect(config)
 
@@ -108,22 +164,20 @@ router.post('/', authenticationToken, async (req, res) => {
             .input('Currency', mssql.NVarChar, Currency)
             .input('Stock', mssql.Decimal, Stock)
             .input('Description', mssql.NVarChar, Description)
-            .input('UserId', mssql.Int, UserId)
+            .input('TargetStoreId', mssql.Int, targetStoreId) // NEW: Pass the StoreId to SQL
             .query(`
                 DECLARE @CategoryId int;
                 DECLARE @ProductId int;
-                DECLARE @StoreId int;
 
-                -- Megnézzük, hogy létezik-e ez a kategória a ProductCategory-ban (Transaction folyt. köv.)
+                -- Megnézzük, hogy létezik-e ez a kategória a ProductCategory-ban
                 SET @CategoryId = (SELECT Id FROM ProductCategory WHERE Name = @PCName);
 
-                -- Megnézzük, hogy létezik-e ez a sablon a Products-ban (Transaction folyt. köv.)
+                -- Megnézzük, hogy létezik-e ez a sablon a Products-ban
                 SET @ProductId = (SELECT TOP 1 Id FROM Product
                     WHERE LOWER(Name) = LOWER(@PName) AND LOWER(Brand) = LOWER(@Brand)
                     AND LOWER(Unit) = LOWER(@Unit) AND CategoryId = @CategoryId)
 
-                -- Kikeressük az alkalmazotthoz rendelt StoreId (Melyik boltnál dolgozik?)
-                SET @StoreId = (SELECT StoreId FROM Employee WHERE Id = @UserId) 
+                -- ELTÁVOLÍTVA: A régi Employee StoreId lekérdezés. Most már a @TargetStoreId-t használjuk!
 
                 BEGIN TRANSACTION
                     BEGIN TRY
@@ -142,9 +196,9 @@ router.post('/', authenticationToken, async (req, res) => {
                             SET @ProductId = SCOPE_IDENTITY()  -- Elkérjük az új termék sablon Id-jét
                         END;
 
-                        -- Feltöltjük a bolt idézőjeles raktárába a terméket
+                        -- Feltöltjük a KIVÁLASZTOTT bolt raktárába a terméket
                         INSERT INTO StoreInventory (StoreId, ProductId, Price, Currency, Stock, Description) VALUES
-                        (@StoreId, @ProductId, @Price, @Currency, @Stock, @Description);
+                        (@TargetStoreId, @ProductId, @Price, @Currency, @Stock, @Description);
                         
                         COMMIT TRANSACTION;
                     END TRY
@@ -167,23 +221,21 @@ router.post('/', authenticationToken, async (req, res) => {
 
 router.put('/', authenticationToken, async (req, res) => {
     let pool;
-    try{
-        const {StoreInvId, ProductId, PName, PCName, Brand, Unit, Price, Currency, Stock, Description} = req.body
-        const AuthLv = req.user.AuthLv //Tokenből infó
+    try {
+        const {StoreInvId, ProductId, PName, PCName, Brand, Unit, Price, Currency, Stock, Description} = req.body;
+        const AuthLv = req.user.AuthLv;
 
-        if(AuthLv == 4)
-            return res.status(403).json({ success: false, error: "Ehhez a művelethez nincs jogosultságod!" });
+        if(AuthLv == 4) return res.status(403).json({ success: false, error: "Nincs jogosultságod!" });
 
-        pool = await mssql.connect(config)
-
+        pool = await mssql.connect(config);
         await pool.request()
-        .input('PName', mssql.NVarChar, PName)
+            .input('PName', mssql.NVarChar, PName)
             .input('Brand', mssql.NVarChar, Brand)
             .input('Unit', mssql.NVarChar, Unit)
             .input('PCName', mssql.NVarChar, PCName)
-            .input('Price', mssql.Decimal, Price)
+            .input('Price', mssql.Decimal(18, 2), Price)
             .input('Currency', mssql.NVarChar, Currency)
-            .input('Stock', mssql.Decimal, Stock)
+            .input('Stock', mssql.Decimal(18, 2), Stock)
             .input('Description', mssql.NVarChar, Description)
             .input('currentProductId', mssql.Int, ProductId)
             .input('StoreInventoryId', mssql.Int, StoreInvId)
@@ -191,172 +243,163 @@ router.put('/', authenticationToken, async (req, res) => {
                 DECLARE @CategoryId int;
                 DECLARE @ProductId int;
 
-                -- Megnézzük, hogy létezik-e ez a kategória a ProductCategory-ban (Transaction folyt. köv.)
-                SET @CategoryId = (SELECT Id FROM ProductCategory WHERE Name = @PCName);
+                -- Bulletproof Category Lookup
+                SET @CategoryId = (SELECT TOP 1 Id FROM ProductCategory WHERE LOWER(TRIM(Name)) = LOWER(TRIM(@PCName)));
 
                 BEGIN TRANSACTION
-                    BEGIN TRY
-                        -- Ha még nincs ilyen kategória, akkor töltsük fel
-                        IF @CategoryId IS NULL
+                BEGIN TRY
+                    IF @CategoryId IS NULL
+                    BEGIN
+                        INSERT INTO ProductCategory (Name) VALUES (TRIM(@PCName));
+                        SET @CategoryId = SCOPE_IDENTITY();
+                    END;
+
+                    -- Bulletproof Product Lookup
+                    SET @ProductId = (SELECT TOP 1 Id FROM Product
+                        WHERE LOWER(TRIM(Name)) = LOWER(TRIM(@PName)) 
+                        AND LOWER(TRIM(Brand)) = LOWER(TRIM(@Brand))
+                        AND LOWER(TRIM(Unit)) = LOWER(TRIM(@Unit)) 
+                        AND CategoryId = @CategoryId);
+                    
+                    IF @ProductId IS NULL OR @ProductId <> @currentProductId
+                    BEGIN
+                        IF @ProductId IS NULL
                         BEGIN
-                            INSERT INTO ProductCategory (Name) VALUES (@PCName)
-                            SET @CategoryId = SCOPE_IDENTITY()  -- Elkérjük az új termék kategória Id-jét
+                            INSERT INTO Product (CategoryId, Name, Brand, Unit) 
+                            VALUES (@CategoryId, TRIM(@PName), TRIM(@Brand), TRIM(@Unit));
+                            SET @ProductId = SCOPE_IDENTITY();
                         END;
 
-                        -- Megnézzük, hogy létezik-e ez a sablon a Products-ban
-                        -- Ezuttal már a CategoryId újra beillesztése után, ha megtörtént
-                        SET @ProductId = (SELECT TOP 1 Id FROM Product
-                            WHERE LOWER(Name) = LOWER(@PName) AND LOWER(Brand) = LOWER(@Brand)
-                            AND LOWER(Unit) = LOWER(@Unit) AND CategoryId = @CategoryId)
-                        
-                        -- Ha még nincs ilyen termék sablon, vagy nem ugyanaz mint a mostani, akkor...
-                        IF @ProductId IS NULL OR @ProductId <> @currentProductId
-                        BEGIN
-                            -- ...először megnézzük, hogy TÉNYLEG nincs ilyen sablon, ha nincs...
-                            IF @ProductId IS NULL
-                            BEGIN
-                                -- ...csináljuk meg a sablont
-                                INSERT INTO Product (CategoryId, Name, Brand, Unit) 
-                                VALUES (@CategoryId, @PName, @Brand, @Unit);
-                                
-                                SET @ProductId = SCOPE_IDENTITY(); -- Elkérjük az új termék sablon Id-jét
-                            END;
+                        UPDATE StoreInventory SET ProductId = @ProductId WHERE Id = @StoreInventoryId;
 
-                            -- ...állítsuk át az új termék sablonra a StoreInventory-nál.
-                            UPDATE StoreInventory
-                            SET ProductId = @ProductId
-                            WHERE Id = @StoreInventoryId;
+                        -- Cleanup unused templates
+                        DELETE FROM Product 
+                        WHERE Id = @currentProductId 
+                        AND Id <> @ProductId
+                        AND NOT EXISTS (SELECT 1 FROM StoreInventory WHERE ProductId = @currentProductId);
+                    END;
 
-                            -- Töröljük ki a régi termék sablont !!CSAK AKKOR HA MÁS BOLT NEM HASZNÁLJA!!
-                            DELETE FROM Product
-                            WHERE Id = @currentProductId 
-                            AND Id <> @ProductId -- Nehogy magunkat töröljük le
-                            AND NOT EXISTS (SELECT 1 FROM StoreInventory WHERE ProductId = @currentProductId);
-                        END;
+                    UPDATE StoreInventory
+                    SET 
+                        Price = COALESCE(NULLIF(@Price, 0), Price),
+                        Currency = COALESCE(NULLIF(@Currency, ''), Currency),
+                        Description = COALESCE(NULLIF(@Description, ''), Description),
+                        Stock = COALESCE(@Stock, Stock)
+                    WHERE Id = @StoreInventoryId;
 
-                        -- Megnézzük, hogy legalább az egyik NEM NULL
-                        IF LEN(CONCAT(@Price, @Currency, @Description, @Stock)) > 0
-                        BEGIN
-                            -- Frissítjük az adatokat
-                            UPDATE StoreInventory
-                            SET 
-                                -- Ha a @Price 0 vagy NULL, marad a jelenlegi Price
-                                Price = COALESCE(NULLIF(@Price, 0), Price),
-                                
-                                -- Ha a @Currency üres ('') vagy NULL, marad a jelenlegi Currency
-                                Currency = COALESCE(NULLIF(@Currency, ''), Currency),
-                                
-                                -- Ha a @Description üres vagy NULL, marad a jelenlegi Description
-                                Description = COALESCE(NULLIF(@Description, ''), Description),
-                                
-                                -- Ha a @Stock NULL (itt a 0 lehet valid érték, szóval csak NULL-ra nézzük), marad a régi
-                                Stock = COALESCE(@Stock, Stock)
-                            WHERE Id = @StoreInventoryId;
-                        END;
+                    COMMIT TRANSACTION;
+                END TRY
+                BEGIN CATCH
+                    IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
+                    THROW;
+                END CATCH;
+            `);
 
-                        COMMIT TRANSACTION;
-                    END TRY;
-                    BEGIN CATCH
-                        IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
-                        THROW;
-                    END CATCH;
-                `)
-
-        res.status(200).json({success: true, message: "Termék sikeresen feltöltve!"})
+        res.status(200).json({success: true, message: "Sikeres frissítés!"});
+    } catch(err) {
+        console.error("PUT ERROR:", err);
+        res.status(500).json({success: false, message: "Szerver hiba a módosításkor!"});
+    } finally {
+        if (pool) pool.close();
     }
-    catch(err){
-        console.error("Fetch ERROR:", err)
-        res.status(500).json({success: false, message: "Szerver hiba történt!"})
-    }
-    finally{
-        if (pool) pool.close()
-    }
-})
+});
 
 router.delete('/', authenticationToken, async (req, res) => {
     let pool;
-    try{
-        const {StoreInvId, ProductId} = req.body
-        const AuthLv = req.user.AuthLv //Tokenből infó
+    try {
+        const {StoreInvId, ProductId} = req.body;
+        if(req.user.AuthLv == 4) return res.status(403).json({ success: false, error: "Nincs jogosultságod!" });
 
-        if(AuthLv == 4)
-            return res.status(403).json({ success: false, error: "Ehhez a művelethez nincs jogosultságod!" });
-
-        pool = await mssql.connect(config)
-
+        pool = await mssql.connect(config);
         await pool.request()
-            .input('StoreInventoryId', mssql.Int, StoreInvId)
+            .input('StoreInventoryId', mssql.Int, StoreInvId) // Use consistent naming
             .input('currentProductId', mssql.Int, ProductId)
             .query(`
                 BEGIN TRANSACTION
-                    BEGIN TRY
-                        -- Volt-e bármely eladásban ez a termék? Ha Igen...
-                        IF EXISTS (SELECT 1 FROM Sales WHERE InventoryId = @StoreInvId)
-                        BEGIN
-                            -- Teljesen töröljük ki
-                            DELETE FROM StoreInventory WHERE Id = @StoreInventoryId;
-                            
-                            -- Sablonnal együtt, ha más bolt nem használja más bolt.
-                            DELETE FROM Product 
-                            WHERE Id = @currentProductId 
-                            AND NOT EXISTS (SELECT 1 FROM StoreInventory WHERE ProductId = @currentProductId);
-                        END;
-                        ELSE -- Ha nem...
-                        BEGIN
-                            -- Simán úgy teszünk, mintha kitörölnénk
-                            UPDATE StoreInventory
-                            SET IsDeleted = 1
-                            WHERE Id = @StoreInventoryId
-                        END;
+                BEGIN TRY
+                    -- FIX: Using the correct @StoreInventoryId variable here!
+                    IF EXISTS (SELECT 1 FROM Sales WHERE InventoryId = @StoreInventoryId)
+                    BEGIN
+                        -- If it was ever sold, we only soft-delete
+                        UPDATE StoreInventory SET IsDeleted = 1 WHERE Id = @StoreInventoryId;
+                    END
+                    ELSE 
+                    BEGIN
+                        -- If never sold, we can fully delete
+                        DELETE FROM StoreInventory WHERE Id = @StoreInventoryId;
+                    END
 
-                        COMMIT TRANSACTION;
-                    END TRY;
-                    BEGIN CATCH
-                        IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
-                        THROW;
-                    END CATCH;
-                `)
+                    -- Clean up the product template if no other store is using it
+                    DELETE FROM Product 
+                    WHERE Id = @currentProductId 
+                    AND NOT EXISTS (SELECT 1 FROM StoreInventory WHERE ProductId = @currentProductId);
+
+                    COMMIT TRANSACTION;
+                END TRY
+                BEGIN CATCH
+                    IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
+                    THROW;
+                END CATCH;
+            `);
+        res.status(200).json({success: true, message: "Sikeres törlés!"});
+    } catch(err) {
+        console.error("DELETE ERROR:", err);
+        res.status(500).json({success: false, message: "Hiba a törlés közben!"});
+    } finally {
+        if (pool) pool.close();
     }
-    catch(err){
-        console.error("Fetch ERROR:", err)
-        res.status(500).json({success: false, message: "Szerver hiba történt!"})
-    }
-    finally{
-        if (pool) pool.close()
-    }
-})
+});
 
 // Innentől kezdve a fájl betöltés/írás endpointok találhatók -> Aki ide belép, haggyon fel minden reménnyel
 router.patch('/', authenticationToken, upload.single('RestockFile'), async (req, res) => {
     let pool;
     try{
-        if (!req.file) return res.status(400).send('Nincs fájl feltöltve.')
-        
-        const fileContent = iconv.decode(req.file.buffer, 'win1250')
+        if (!req.file) return res.status(400).send('Nincs fájl feltöltve.');
 
+        let fileContent;
+
+        // 1. AUTO-DETECT ENCODING: Check for Excel's hidden UTF-8 BOM signature (EF BB BF)
+        if (req.file.buffer[0] === 0xEF && req.file.buffer[1] === 0xBB && req.file.buffer[2] === 0xBF) {
+            console.log("Encoding Detected: UTF-8");
+            fileContent = req.file.buffer.toString('utf8');
+        } else {
+            console.log("Encoding Detected: win1250");
+            fileContent = iconv.decode(req.file.buffer, 'win1250');
+        }
+
+        // 2. AUTO-DETECT DELIMITER: Look at the first line to see if Excel used commas or semicolons
+        const firstLine = fileContent.split('\n')[0];
+        const detectedDelimiter = firstLine.includes(';') ? ';' : ',';
+        console.log("Delimiter Detected:", detectedDelimiter);
+
+        // 3. PARSE THE FILE using the auto-detected settings
         const records = parse(fileContent, {
-            columns: true, // Az első sor a fejléc, ebből lesznek a kulcsok
+            columns: true, 
             skip_empty_lines: true,
-            delimiter: ';'
-        })
+            delimiter: detectedDelimiter,
+            trim: true, 
+            bom: true // Strips out the invisible characters!
+        });
 
-        const jsonData = JSON.stringify(records)
+        console.log("Sikeres beolvasás:", records[0]); // Let's peek at the first row!
 
-        pool = await mssql.connect(config)
+        const jsonData = JSON.stringify(records);
 
-        await pool.request()
+        pool = await mssql.connect(config);
+
+        const result = await pool.request()
             .input('ImportJSON', mssql.NVarChar(mssql.MAX), jsonData)
             .query(`
                 -- Beolvassuk a JSON-t egy ideiglenes táblába
                 SELECT 
                     JSON_VALUE(value, '$."Bolt név"') as StoreName,
                     JSON_VALUE(value, '$."Bolt cím"') as StoreAddress,
-                    JSON_VALUE(value, '$."Termék név"') as PName,
-                    JSON_VALUE(value, '$."Termék kategória név"') as PCName,
+                    JSON_VALUE(value, '$."Termék név"') as ProductName, -- FIXED ALIAS
+                    JSON_VALUE(value, '$."Termék kategória név"') as CategoryName, -- FIXED ALIAS
                     JSON_VALUE(value, '$."Márka"') as Brand,
                     JSON_VALUE(value, '$."Egység"') as Unit,
                     JSON_VALUE(value, '$."Hozzáadandó áru száma"') as StockToAdd
-                INTO #TempImport -- Tábla neve
+                INTO #TempImport 
                 FROM OPENJSON(@ImportJSON);
 
                 -- Tömeges frissítés
@@ -365,6 +408,7 @@ router.patch('/', authenticationToken, upload.single('RestockFile'), async (req,
                 FROM StoreInventory SI
                 INNER JOIN Product P ON SI.ProductId = P.Id
                 INNER JOIN ProductCategory PC ON P.CategoryId = PC.Id
+                INNER JOIN Store S ON SI.StoreId = S.Id -- FIXED: Added the missing Store JOIN!
                 INNER JOIN #TempImport T ON 
                     LOWER(TRIM(P.Name)) = LOWER(TRIM(T.ProductName)) AND
                     LOWER(TRIM(P.Brand)) = LOWER(TRIM(T.Brand)) AND
@@ -373,6 +417,7 @@ router.patch('/', authenticationToken, upload.single('RestockFile'), async (req,
                     LOWER(TRIM(S.Name)) = LOWER(TRIM(T.StoreName)) AND
                     LOWER(TRIM(S.Address)) = LOWER(TRIM(T.StoreAddress));
 
+                -- Hibák visszaküldése (amiket nem talált meg)
                 SELECT 
                     T.StoreName, 
                     T.ProductName, 
@@ -380,12 +425,12 @@ router.patch('/', authenticationToken, upload.single('RestockFile'), async (req,
                     T.Unit,
                     'Nem található ilyen termék vagy bolt ezzel a kombinációval' AS ErrorReason
                 FROM #TempImport T
-                LEFT JOIN Store S ON LOWER(TRIM(S.Name)) = LOWER(TRIM(T.StoreName))
+                LEFT JOIN Store S ON LOWER(TRIM(S.Name)) = LOWER(TRIM(T.StoreName)) AND LOWER(TRIM(S.Address)) = LOWER(TRIM(T.StoreAddress))
                 LEFT JOIN Product P ON LOWER(TRIM(P.Name)) = LOWER(TRIM(T.ProductName))
                     AND LOWER(TRIM(P.Brand)) = LOWER(TRIM(T.Brand))
                     AND LOWER(TRIM(P.Unit)) = LOWER(TRIM(T.Unit))
                 LEFT JOIN StoreInventory SI ON SI.ProductId = P.Id AND SI.StoreId = S.Id
-                WHERE SI.Id IS NULL; -- Csak azokat kérjük le, amiknél nem jött létre a kapcsolat
+                WHERE SI.Id IS NULL; 
                 
                 DROP TABLE #TempImport;
             `);
@@ -415,10 +460,13 @@ router.patch('/', authenticationToken, upload.single('RestockFile'), async (req,
 router.get('/export-template/:storeId', authenticationToken, async (req, res) => {
     let pool;
     try {
+        const queryThreshold = parseInt(req.query.threshold);
+        const lowStockThreshold = (!isNaN(queryThreshold) && queryThreshold >= 0) ? queryThreshold : 10;
         pool = await mssql.connect(config)
 
         const result = await pool.request()
             .input('StoreId', mssql.Int, req.params.storeId)
+            .input('Threshold', mssql.Int, lowStockThreshold)
             .query(`
                 SELECT 
                     S.Name AS StoreName,
@@ -431,7 +479,7 @@ router.get('/export-template/:storeId', authenticationToken, async (req, res) =>
                 JOIN Store S ON SI.StoreId = S.Id
                 JOIN Product P ON SI.ProductId = P.Id
                 JOIN ProductCategory PC ON P.CategoryId = PC.Id
-                WHERE SI.StoreId = @StoreId AND SI.IsDeleted = 0
+                WHERE SI.StoreId = @StoreId AND SI.IsDeleted = 0 AND SI.Stock <= @Threshold
             `);
 
         // Fejléc összeállítása (pontosan az, amit az import vár!)
@@ -451,9 +499,8 @@ router.get('/export-template/:storeId', authenticationToken, async (req, res) =>
         res.setHeader('Content-Disposition', `attachment; filename=keszlet_sablon_bolt_${req.params.storeId}.csv`);
 
         res.send(buffer);
-        res.status(200).json({success: true, message: "Sablon generálva!"})
     } catch (error) {
-        console.error("Fetch ERROR:", err)
+        console.error("Fetch ERROR:", error)
         res.status(500).json({success: false, message: "Hiba a sablon generálása közben!"})
     }
     finally{

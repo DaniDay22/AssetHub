@@ -1,10 +1,10 @@
 'use client';
 import React, { useState, useEffect } from 'react';
+import { useStores } from '../../context/StoreContext';
 import { Search, Plus, Mail, Store, User, Loader2, X, ChevronDown, RefreshCw, Trash2, Pencil, Phone } from 'lucide-react';
 
 export default function EmployeesPage() {
-  const [stores, setStores] = useState<any[]>([]);
-  const [selectedStoreId, setSelectedStoreId] = useState<string>('');
+  const { stores, selectedStoreId, setSelectedStoreId } = useStores();
 
   const [currentUserId, setCurrentUserId] = useState<number | null>(null);
   const [employees, setEmployees] = useState<any[]>([]);
@@ -67,47 +67,6 @@ export default function EmployeesPage() {
     setIsModalOpen(true);
   };
 
-  // 1. Fetch Stores on Page Load AND get the logged-in User's ID
-  useEffect(() => {
-    const fetchStores = async () => {
-      try {
-        const token = localStorage.getItem('token');
-        if (!token) return;
-
-        // --- NEW: Decode the token to find out who is logged in! ---
-        try {
-          // A JWT token has 3 parts separated by dots. The middle part ([1]) has the data.
-          // 'atob' decrypts it so we can read the UserId inside!
-          const payload = JSON.parse(atob(token.split('.')[1]));
-          if (payload.UserId) {
-            setCurrentUserId(Number(payload.UserId));
-          }
-        } catch (e) {
-          console.error("Nem sikerült dekódolni a tokent.");
-        }
-        // ------------------------------------------------------------
-
-        const res = await fetch('http://localhost:5000/api/employees/my-stores', {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        const json = await res.json();
-        
-        if (json.success || Array.isArray(json)) {
-          const storeData = json.data || json; 
-          setStores(storeData);
-          
-          // Automatically trigger the employee fetch by setting the ID!
-          if (storeData.length > 0) {
-            setSelectedStoreId(storeData[0].Id.toString());
-          }
-        }
-      } catch (err) {
-        console.error("Hiba a boltok betöltésekor:", err);
-      }
-    };
-
-    fetchStores();
-  }, []);
 
   // 2. Fetch Employees WHENEVER the selected store changes
   useEffect(() => {

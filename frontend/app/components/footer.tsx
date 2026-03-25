@@ -1,5 +1,7 @@
 'use client';
-import { usePathname } from 'next/dist/client/components/navigation';
+
+// FIXED IMPORT: Always use 'next/navigation' in the App Router!
+import { usePathname } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link'; 
 
@@ -10,14 +12,14 @@ export default function Footer(){
   if (pathname?.startsWith('/dashboard')) {
     return null;
   }
+  
   return (
     <footer className="mt-auto px-6 py-8 border-t border-slate-900 text-center bg-[#020617]">
         <div className="flex items-center justify-center gap-2 mb-4">
-          <Image src="/AssetHub-logo.png" alt="AssetHub Logo" className=" w-auto m-auto" 
+          <Image src="/AssetHub-logo.png" alt="AssetHub Logo" className="w-auto m-auto" 
                 width={30}
                 height={24} 
           />
-          
         </div>
         
         <span className="text-xl font-bold text-white tracking-tight">AssetHub</span>
