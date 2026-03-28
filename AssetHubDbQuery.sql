@@ -81,7 +81,7 @@ CREATE TABLE Sales (
     PriceAtSale INT NOT NULL,
     TimeSold DATETIME DEFAULT GETDATE(),
     Quantity DECIMAL(18, 2) NOT NULL,
+    IsDeleted BIT NOT NULL DEFAULT 0,
     FOREIGN KEY (InventoryId) REFERENCES StoreInventory(Id),
     FOREIGN KEY (EmployeeId) REFERENCES Employee(Id)
-    IsDeleted BIT NOT NULL DEFAULT 0;
 );
