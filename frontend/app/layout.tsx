@@ -20,7 +20,6 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           <StoreProvider>
           <Navbar />
           
-          {/* We swapped <main> for our smart PageWrapper */}
           <PageWrapper>
             {children}
           </PageWrapper>

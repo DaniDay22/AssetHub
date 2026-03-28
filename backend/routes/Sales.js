@@ -21,7 +21,7 @@ const authenticationToken = (req, res, next) => {
     });
 };
 
-// GET: Fetch Sales History (Now supports Multi-Store AND Date Filtering!)
+// GET: Lekéri egy adott bolt eladási történetét. A dolgozó csak a saját franchise-án belül, és csak a saját boltjához tartozó eladásokat láthatja (kivéve ha magasabb jogosultságú, akkor több bolthoz is láthat).
 router.get('/History', authenticationToken, async (req, res) => {
     try {
         const { AuthLv, FranchiseId, StoreId } = req.user;
@@ -30,15 +30,15 @@ router.get('/History', authenticationToken, async (req, res) => {
             return res.status(403).json({ success: false, error: "Ehhez a művelethez nincs jogosultságod!!" });
         }
 
-        // Determine target store (fallback to user's home store)
+        // Ha a frontend nem adott meg storeId-t, akkor használjuk a tokenben lévő StoreId-t. Ez biztosítja, hogy ha egy dolgozó nem ad meg storeId-t, akkor automatikusan a saját boltja eladásait fogja látni.
         const targetStoreId = req.query.storeId ? parseInt(req.query.storeId) : StoreId;
         
-        // Grab optional date filters from the URL
+        // Ha a frontend nem adott meg dátumokat, akkor lekérjük az összes eladást. Ha megadott, akkor csak a megadott időszakra eső eladásokat.
         const { startDate, endDate } = req.query;
 
         const pool = await mssql.connect(config);
 
-        // SECURITY: Verify the requested store belongs to their franchise
+        // SECURITY: Megnézzük, hogy a megadott storeId valóban a saját franchise-unkhoz tartozik-e. Ez megakadályozza, hogy egy dolgozó más franchise-hoz tartozó bolt eladásait lássa.
         const storeCheck = await pool.request()
             .input('TargetStoreId', mssql.Int, targetStoreId)
             .input('MyFranchiseId', mssql.Int, FranchiseId)
@@ -48,7 +48,6 @@ router.get('/History', authenticationToken, async (req, res) => {
             return res.status(403).json({ success: false, error: "Nincs jogosultságod ehhez a bolthoz!" });
         }
 
-        // Build the query dynamically
         let queryStr = `
             SELECT 
                 Sales.Id,
@@ -71,7 +70,7 @@ router.get('/History', authenticationToken, async (req, res) => {
 
         const request = pool.request().input('TargetStoreId', mssql.Int, targetStoreId);
 
-        // If the frontend passed dates, add the filter! 
+        // Ha a frontend megadta a startDate és endDate paramétereket, akkor szűrjük az eladásokat a megadott időszakra. 
         if (startDate && endDate) {
             queryStr += ` AND CAST(Sales.TimeSold AS DATE) BETWEEN @StartDate AND @EndDate`;
             request.input('StartDate', mssql.Date, startDate);
@@ -88,7 +87,7 @@ router.get('/History', authenticationToken, async (req, res) => {
     }
 });
 
-// GET: Fetch Inventory for the Cash Register
+// GET: Lekéri egy adott bolt aktuális készletét. A dolgozó csak a saját franchise-án belül, és csak a saját boltjához tartozó készletet láthatja (kivéve ha magasabb jogosultságú, akkor több bolthoz is láthat).
 router.get('/Inventory', authenticationToken, async (req, res) => {
     try {
         const { FranchiseId, StoreId } = req.user;
@@ -96,7 +95,7 @@ router.get('/Inventory', authenticationToken, async (req, res) => {
 
         const pool = await mssql.connect(config);
 
-        // SECURITY: Verify store ownership
+        // SECURITY: Megnézzük, hogy a megadott storeId valóban a saját franchise-unkhoz tartozik-e. Ez megakadályozza, hogy egy dolgozó más franchise-hoz tartozó bolt készletét lássa.
         const storeCheck = await pool.request()
             .input('TargetStoreId', mssql.Int, targetStoreId)
             .input('MyFranchiseId', mssql.Int, FranchiseId)
@@ -129,7 +128,7 @@ router.get('/Inventory', authenticationToken, async (req, res) => {
     }
 });
 
-// POST: Register a new sale
+// POST: Rögzít egy új eladást. A dolgozó csak a saját franchise-án belül, és csak a saját boltjához tartozó eladásokat rögzítheti (kivéve ha magasabb jogosultságú, akkor több bolthoz is rögzíthet).
 router.post('/Add', authenticationToken, async (req, res) => {
     let pool;
     try {
@@ -139,7 +138,7 @@ router.post('/Add', authenticationToken, async (req, res) => {
 
         pool = await mssql.connect(config);
 
-        // 1. Get current price, stock, AND verify the item belongs to their franchise!
+        // Megnézzük, hogy a megadott inventoryId valóban egy olyan termék, ami a saját franchise-unkhoz tartozó boltban van, és lekérjük az árát és a készletét is. Ez megakadályozza, hogy egy dolgozó más franchise-hoz tartozó bolt termékét adja el.
         const itemRes = await pool.request()
             .input('InventoryId', mssql.Int, inventoryId)
             .input('MyFranchiseId', mssql.Int, myFranchiseId)
@@ -160,7 +159,7 @@ router.post('/Add', authenticationToken, async (req, res) => {
             return res.status(400).json({ success: false, error: "Nincs elég készlet!" });
         }
 
-        // 2. The Transaction
+        // A transakcióban egyszerre rögzítjük az eladást és vonjuk le a készletet, hogy elkerüljük a versenyhelyzeteket.
         await pool.request()
             .input('InventoryId', mssql.Int, inventoryId)
             .input('EmployeeId', mssql.Int, employeeId)
@@ -183,7 +182,7 @@ router.post('/Add', authenticationToken, async (req, res) => {
     }
 });
 
-// DELETE: Void a sale and return stock to inventory
+// DELETE: Töröl egy eladást (valójában csak érvényteleníti). A dolgozó csak a saját franchise-án belül, és csak a saját boltjához tartozó eladásokat törölheti (kivéve ha magasabb jogosultságú, akkor több bolthoz is törölhet).
 router.delete('/:id', authenticationToken, async (req, res) => {
     let pool;
     try {
@@ -192,7 +191,7 @@ router.delete('/:id', authenticationToken, async (req, res) => {
         
         pool = await mssql.connect(config);
 
-        // 1. Find the sale AND verify it happened in a store owned by their franchise
+        // Megkeressük az eladást, és ellenőrizzük, hogy valóban a saját franchise-unkhoz tartozó boltban történt-e. Ez megakadályozza, hogy egy dolgozó más franchise-hoz tartozó bolt eladásait törölje.
         const saleCheck = await pool.request()
             .input('SaleId', mssql.Int, saleId)
             .input('MyFranchiseId', mssql.Int, myFranchiseId)
@@ -210,7 +209,7 @@ router.delete('/:id', authenticationToken, async (req, res) => {
 
         const { InventoryId, Quantity } = saleCheck.recordset[0];
 
-        // 2. Soft-Delete the sale AND return the stock in one atomic transaction
+        // A transakcióban egyszerre érvénytelenítjük az eladást és visszaállítjuk a készletet, hogy elkerüljük a versenyhelyzeteket.
         await pool.request()
             .input('SaleId', mssql.Int, saleId)
             .input('InventoryId', mssql.Int, InventoryId)

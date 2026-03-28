@@ -14,7 +14,7 @@ interface StoreContextType {
 const StoreContext = createContext<StoreContextType | undefined>(undefined);
 
 export function StoreProvider({ children }: { children: ReactNode }) {
-  const { user } = useAuth(); // Get user info
+  const { user } = useAuth(); // Az AuthContext-ból lekérjük a bejelentkezett felhasználó adatait, hogy tudjuk, mely boltokat töltsük be és milyen jogosultságokat adjunk.
   const [stores, setStores] = useState<any[]>([]);
   const [selectedStoreId, setSelectedStoreId] = useState<string>('');
   const [loadingStores, setLoadingStores] = useState(true);
@@ -34,7 +34,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         if (Array.isArray(data)) {
           setStores(data);
           
-          // Persistence Logic:
+          // Megpróbáljuk visszaállítani az utoljára kiválasztott bolt ID-jét localStorage-ból, ha az még mindig érvényes (létezik a frissített boltlistában). Ha nincs érvényes mentett ID, akkor az első boltot választjuk ki alapértelmezettként.
           const savedId = localStorage.getItem('lastSelectedStoreId');
           if (savedId && data.find(s => s.Id.toString() === savedId)) {
             setSelectedStoreId(savedId);
@@ -52,7 +52,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     fetchStores();
   }, []);
 
-  // Custom setter that also saves to localStorage
+  // Saját setter, ami a state-et is frissíti és a localStorage-t is, hogy megőrizzük a kiválasztott bolt állapotát oldalfrissítés után is.
   const handleSetSelectedStore = (id: string) => {
     setSelectedStoreId(id);
     localStorage.setItem('lastSelectedStoreId', id);

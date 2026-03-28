@@ -6,13 +6,13 @@ import { Search, Plus, CreditCard, Banknote, Clock, User, X, Loader2, Trash2, St
 export default function SalesFeedPage() {
   const { stores, selectedStoreId, setSelectedStoreId, isOwner } = useStores();
 
-  // --- SALES STATE ---
+  // SALES STATE
   const [sales, setSales] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
-  
-  // --- MODAL & INVENTORY STATE ---
+
+  // MODAL & INVENTORY STATE
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [inventory, setInventory] = useState<any[]>([]);
   const [loadingInventory, setLoadingInventory] = useState(false);
@@ -23,7 +23,7 @@ export default function SalesFeedPage() {
   });
 
 
-  // 2. Fetch Sales WHENEVER the selected store changes
+  // Lekérjük az eladásokat, amikor a selectedStoreId változik (tehát amikor a felhasználó új boltot választ).
   useEffect(() => {
     const fetchSales = async () => {
       if (!selectedStoreId) return;
@@ -36,7 +36,7 @@ export default function SalesFeedPage() {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         const json = await res.json();
-        
+
         if (res.ok && json.success) {
           setSales(json.data);
         } else {
@@ -49,12 +49,12 @@ export default function SalesFeedPage() {
       }
     };
 
-    // Reset inventory so it refetches for the new store next time the modal opens
-    setInventory([]); 
+    // Minden alkalommal, amikor új boltot választunk, ürítsük ki a korábbi eladásokat és készletet, hogy ne zavarja az új adatok betöltését.
+    setInventory([]);
     fetchSales();
   }, [selectedStoreId]);
 
-  // 3. Fetch Inventory ONLY when the modal is opened (for the selected store)
+  // Lekérjük a készletet, amikor megnyitjuk az új eladás modal-t, és csak akkor, ha még nincs betöltve a készlet (így nem kell újra lekérni minden egyes modal megnyitáskor).
   useEffect(() => {
     if (isModalOpen && inventory.length === 0 && selectedStoreId) {
       const fetchInventory = async () => {
@@ -78,7 +78,7 @@ export default function SalesFeedPage() {
 
   const handleDeleteSale = async (saleId: number) => {
     if (!window.confirm("Biztosan törlöd ezt az eladást? A termékek visszakerülnek a raktárba.")) return;
-    
+
     try {
       const token = localStorage.getItem('token');
       const res = await fetch(`http://localhost:5000/api/Sales/${saleId}`, {
@@ -103,8 +103,8 @@ export default function SalesFeedPage() {
     const search = searchTerm.toLowerCase();
 
     return name.toLowerCase().includes(search) ||
-           brand.toLowerCase().includes(search) ||
-           seller.toLowerCase().includes(search);
+      brand.toLowerCase().includes(search) ||
+      seller.toLowerCase().includes(search);
   });
 
   const handleCreateSale = async (e: React.FormEvent) => {
@@ -113,20 +113,20 @@ export default function SalesFeedPage() {
       const token = localStorage.getItem('token');
       const res = await fetch('http://localhost:5000/api/sales/Add', {
         method: 'POST',
-        headers: { 
+        headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}` 
+          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify(newSale)
       });
-      
+
       const json = await res.json();
-      
+
       if (json.success) {
-        setIsModalOpen(false); 
-        window.location.reload(); 
+        setIsModalOpen(false);
+        window.location.reload();
       } else {
-        alert(json.error); 
+        alert(json.error);
       }
     } catch (err) {
       alert("Nem sikerült kapcsolódni a szerverhez.");
@@ -135,40 +135,40 @@ export default function SalesFeedPage() {
 
   return (
     <div className="flex-1 p-8 w-full max-w-7xl mx-auto relative min-h-full">
-      
+
       {/* HEADER SECTION */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
-        
+
         <div className="flex flex-col sm:flex-row sm:items-center gap-6">
-          
-          
+
+
           {isOwner && stores.length > 1 ? (
-                <div className="relative group">
-                              <div className="flex items-center bg-slate-800/80 hover:bg-slate-700 border border-slate-700 rounded-xl px-4 py-2.5 transition-all cursor-pointer">
-                                <Store className="w-5 h-5 text-blue-400 mr-3 shrink-0" />
-                                <select 
-                                  value={selectedStoreId} 
-                                  onChange={(e) => setSelectedStoreId(e.target.value)}
-                                  className="bg-transparent text-white font-medium focus:outline-none appearance-none pr-8 cursor-pointer w-full min-w-[160px]"
-                                >
-                                  {stores.map(store => (
-                                    <option key={store.Id} value={store.Id} className="bg-slate-800 text-white">
-                                      {store.Name}
-                                    </option>
-                                  ))}
-                                </select>
-                                <ChevronDown className="w-4 h-4 text-slate-400 absolute right-4 pointer-events-none group-hover:text-white transition-colors" />
-                              </div>
-                            </div>
-                ) : (
-               // If not an owner, just show the Store Name as a static badge
-                <div className="flex items-center bg-slate-800/40 border border-slate-700/50 rounded-xl px-4 py-2.5">
-                 <Store className="w-5 h-5 text-blue-400 mr-3" />
-                 <span className="text-white font-medium">
-                   {stores.find(s => s.Id.toString() === selectedStoreId)?.Name || 'Betöltés...'}
-                 </span>
-                    </div>
-                )}
+            <div className="relative group">
+              <div className="flex items-center bg-slate-800/80 hover:bg-slate-700 border border-slate-700 rounded-xl px-4 py-2.5 transition-all cursor-pointer">
+                <Store className="w-5 h-5 text-blue-400 mr-3 shrink-0" />
+                <select
+                  value={selectedStoreId}
+                  onChange={(e) => setSelectedStoreId(e.target.value)}
+                  className="bg-transparent text-white font-medium focus:outline-none appearance-none pr-8 cursor-pointer w-full min-w-[160px]"
+                >
+                  {stores.map(store => (
+                    <option key={store.Id} value={store.Id} className="bg-slate-800 text-white">
+                      {store.Name}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="w-4 h-4 text-slate-400 absolute right-4 pointer-events-none group-hover:text-white transition-colors" />
+              </div>
+            </div>
+          ) : (
+            // Ha nem tulajdonos, vagy csak egy boltja van, akkor csak simán jelenítsük meg a bolt nevét egy nem interaktív elemként.
+            <div className="flex items-center bg-slate-800/40 border border-slate-700/50 rounded-xl px-4 py-2.5">
+              <Store className="w-5 h-5 text-blue-400 mr-3" />
+              <span className="text-white font-medium">
+                {stores.find(s => s.Id.toString() === selectedStoreId)?.Name || 'Betöltés...'}
+              </span>
+            </div>
+          )}
         </div>
 
         <div className="flex items-center gap-4 w-full md:w-auto">
@@ -182,7 +182,7 @@ export default function SalesFeedPage() {
               className="w-full bg-transparent py-2.5 text-white placeholder:text-slate-500 focus:outline-none"
             />
           </div>
-          <button 
+          <button
             onClick={() => setIsModalOpen(true)}
             className="flex items-center justify-center bg-blue-600 hover:bg-blue-500 text-white rounded-xl px-4 py-2.5 font-medium transition-colors whitespace-nowrap"
           >
@@ -190,8 +190,8 @@ export default function SalesFeedPage() {
           </button>
         </div>
       </div>
-        
-      {/* Main Content Area */}
+
+      {/* MAIN CONTENT */}
       {loading ? (
         <div className="flex flex-col items-center justify-center h-64 text-slate-400">
           <Loader2 className="w-8 h-8 animate-spin mb-4 text-blue-500" />
@@ -223,8 +223,8 @@ export default function SalesFeedPage() {
                   <div className="text-right flex flex-col items-end">
                     <span className="text-lg font-bold text-emerald-400 block">{sale.PriceAtSale} Ft</span>
                     <span className="text-xs text-slate-500 mb-2">Db: {sale.Quantity}</span>
-                    <button 
-                      onClick={() => handleDeleteSale(sale.Id)} 
+                    <button
+                      onClick={() => handleDeleteSale(sale.Id)}
                       className="text-slate-500 hover:text-red-400 transition-colors"
                       title="Eladás Törlése"
                     >
@@ -254,13 +254,13 @@ export default function SalesFeedPage() {
         </div>
       )}
 
-      {/* The Modal Overlay */}
+      {/* MODAL */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
           <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-md p-6 shadow-2xl relative">
-            
-            {/* Close Button */}
-            <button 
+
+            {/* Bezárás gomb */}
+            <button
               onClick={() => setIsModalOpen(false)}
               className="absolute top-4 right-4 text-slate-400 hover:text-white transition-colors"
             >
@@ -278,10 +278,10 @@ export default function SalesFeedPage() {
                     Termékek betöltése...
                   </div>
                 ) : (
-                  <select 
+                  <select
                     required
                     value={newSale.inventoryId}
-                    onChange={(e) => setNewSale({...newSale, inventoryId: e.target.value})}
+                    onChange={(e) => setNewSale({ ...newSale, inventoryId: e.target.value })}
                     className="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-blue-500"
                   >
                     <option value="" disabled>-- Válassz egy terméket --</option>
@@ -294,25 +294,25 @@ export default function SalesFeedPage() {
                 )}
               </div>
 
-              {/* Quantity */}
+              {/* Mennyiség */}
               <div>
                 <label className="block text-sm font-medium text-slate-300 mb-1">Mennyiség</label>
-                <input 
-                  type="number" 
+                <input
+                  type="number"
                   min="1"
                   required
                   value={newSale.quantity}
-                  onChange={(e) => setNewSale({...newSale, quantity: parseInt(e.target.value)})}
+                  onChange={(e) => setNewSale({ ...newSale, quantity: parseInt(e.target.value) })}
                   className="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-blue-500"
                 />
               </div>
 
-              {/* Payment Method */}
+              {/* Fizetési mód */}
               <div>
                 <label className="block text-sm font-medium text-slate-300 mb-1">Fizetési mód</label>
-                <select 
+                <select
                   value={newSale.paymentMethod}
-                  onChange={(e) => setNewSale({...newSale, paymentMethod: e.target.value})}
+                  onChange={(e) => setNewSale({ ...newSale, paymentMethod: e.target.value })}
                   className="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-blue-500"
                 >
                   <option value="Készpénz">Készpénz</option>
@@ -320,9 +320,9 @@ export default function SalesFeedPage() {
                 </select>
               </div>
 
-              {/* Submit Button */}
-              <button 
-                type="submit" 
+              {/* Submit Gomb */}
+              <button
+                type="submit"
                 className="w-full bg-blue-600 hover:bg-blue-500 text-white font-medium py-2.5 rounded-lg mt-4 transition-colors"
               >
                 Eladás jóváhagyása

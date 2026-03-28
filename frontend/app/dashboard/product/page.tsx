@@ -1,7 +1,7 @@
 'use client';
 import React, { useState, useEffect } from 'react';
 import { useStores } from '../../context/StoreContext';
-import { ShoppingCart, PackageSearch, Plus, Search, Store, ChevronDown, Loader2, Tag, Hash, Archive, Pencil, Trash2, TrendingUp, FileUp, X, Save } from 'lucide-react';
+import { ShoppingCart, Plus, Search, Store, ChevronDown, Loader2, Archive, Pencil, Trash2, TrendingUp, FileUp, X, Save } from 'lucide-react';
 
 export default function ProductsPage() {
   const { stores, selectedStoreId, setSelectedStoreId, isOwner } = useStores();
@@ -15,23 +15,22 @@ export default function ProductsPage() {
   const [editingId, setEditingId] = useState<number | null>(null); // Track which product we are editing
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // --- CSV UPLOAD STATE ---
+  // CSV UPLOAD STATE
   const [isCsvModalOpen, setIsCsvModalOpen] = useState(false);
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [csvResult, setCsvResult] = useState<any>(null);
 
-  // --- LOW STOCK THRESHOLD STATE ---
+  // LOW STOCK THRESHOLD STATE 
   const [lowStockThreshold, setLowStockThreshold] = useState<number>(10);
 
-  // 📥 DOWNLOAD CSV TEMPLATE (The Bulletproof Way)
+  // CSV Template letöltése a kiválasztott bolthoz (ha nincs kiválasztva bolt, figyelmeztetünk)
   const handleDownloadTemplate = async () => {
     if (!selectedStoreId) return alert("Válassz ki egy boltot először!");
     
     try {
       const token = localStorage.getItem('token');
       
-      // DOUBLE CHECK THIS URL! Make sure 'api/products' matches where your partner put the GET route
       const res = await fetch(`http://localhost:5000/api/StoreInventory/export-template/${selectedStoreId}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -52,7 +51,7 @@ export default function ProductsPage() {
     }
   };
 
-  // 🛒 DOWNLOAD SHOPPING LIST (LOW STOCK)
+  // Bevásárlólista letöltése a kiválasztott bolthoz és határértékhez (ha nincs kiválasztva bolt, figyelmeztetünk)
   const handleDownloadShoppingList = async () => {
     if (!selectedStoreId) return alert("Válassz ki egy boltot először!");
     
@@ -63,7 +62,6 @@ export default function ProductsPage() {
       });
       
       if (!res.ok) {
-        // If it's a 404, the backend sent our "no low stock" message
         if (res.status === 404) return alert("Minden rendben! Nincs alacsony készletű termék ebben a boltban.");
         throw new Error("Hiba a letöltéskor");
       }
@@ -82,7 +80,7 @@ export default function ProductsPage() {
     }
   };
 
-  // 📤 UPLOAD FILLED CSV
+  // CSV fájl feltöltése a backendre a kiválasztott bolt készletének frissítéséhez (ha nincs kiválasztva bolt vagy fájl, figyelmeztetünk)
   const handleUploadCsv = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!csvFile || !selectedStoreId) return;
@@ -93,14 +91,14 @@ export default function ProductsPage() {
     try {
       const token = localStorage.getItem('token');
       
-      // FormData is required for sending files in React!
+      // FormData kell a fájl feltöltéséhez, ne állítsuk be a Content-Type-ot, a böngésző automatikusan megteszi helyettünk!
       const formData = new FormData();
       formData.append('RestockFile', csvFile);
       formData.append('StoreId', selectedStoreId); // Tell backend which store to restock!
 
       const res = await fetch('http://localhost:5000/api/StoreInventory', {
         method: 'PATCH',
-        headers: { 'Authorization': `Bearer ${token}` }, // Do NOT set Content-Type, browser handles it!
+        headers: { 'Authorization': `Bearer ${token}` }, 
         body: formData
       });
 
@@ -117,7 +115,6 @@ export default function ProductsPage() {
     }
   };
 
-  // Matches your backend exactly: {PName, PCName, Brand, Unit, Price, Currency, Stock, Description}
   const [newProduct, setNewProduct] = useState({
     PName: '',
     Brand: '',
@@ -131,7 +128,7 @@ export default function ProductsPage() {
 
   
 
-  // 2. Fetch Products for Store
+  // Termékek lekérése a kiválasztott bolthoz (minden alkalommal, amikor a selectedStoreId változik, vagyis amikor a felhasználó másik boltot választ)
   useEffect(() => {
     const fetchProducts = async () => {
       if (!selectedStoreId) return;
@@ -192,7 +189,7 @@ const handleSaveProduct = async (e: React.FormEvent) => {
       const json = await res.json();
       if (json.success) {
         setIsModalOpen(false);
-        setEditingId(null); // Reset after save
+        setEditingId(null); 
         window.location.reload();
       } else {
         alert(json.message || "Hiba történt.");
@@ -204,7 +201,7 @@ const handleSaveProduct = async (e: React.FormEvent) => {
     }
   };
 
-  // 📝 Open Modal for Editing
+  // Szerkesztés gombra kattintva megnyílik a modal, és a form mezői feltöltődnek a kiválasztott termék adataival. Az editingId beállítása jelzi, hogy szerkesztési módban vagyunk.
   const handleEditClick = (product: any) => {
     setNewProduct({
       PName: product.ProductName,
@@ -216,11 +213,11 @@ const handleSaveProduct = async (e: React.FormEvent) => {
       Stock: product.Stock.toString(),
       Description: product.Description || ''
     });
-    setEditingId(product.StoreInventoryId); // This tells the modal we are in "Edit Mode"
+    setEditingId(product.StoreInventoryId); // Ez segít megkülönböztetni a szerkesztést az új termék létrehozásától a handleSaveProduct függvényben
     setIsModalOpen(true);
   };
 
-  // 🗑️ Delete Product with Confirmation
+  // Törlés gombra kattintva megjelenik egy megerősítő ablak, és ha a felhasználó megerősíti, akkor elküldünk egy DELETE kérést a backendnek a termék törléséhez.
   const handleDeleteProduct = async (storeInvId: number, productId: number) => {
     if (!window.confirm("Biztosan törölni szeretnéd ezt a terméket?")) return;
 
@@ -275,7 +272,7 @@ const handleSaveProduct = async (e: React.FormEvent) => {
                     </div>
                   </div>
       ) : (
-     // If not an owner, just show the Store Name as a static badge
+     // Ha nincs több bolt, vagy a felhasználó nem tulajdonos, akkor csak egy statikus boltdoboz jelenik meg a kiválasztott bolt nevével, nem kattintható.
       <div className="flex items-center bg-slate-800/40 border border-slate-700/50 rounded-xl px-4 py-2.5">
        <Store className="w-5 h-5 text-blue-400 mr-3" />
        <span className="text-white font-medium">
@@ -284,10 +281,10 @@ const handleSaveProduct = async (e: React.FormEvent) => {
           </div>
       )}
 
-        {/* BOTTOM ROW: Search & Actions */}
+        {/* Alsó sor: Keresés és műveletek */}
         <div className="flex flex-col lg:flex-row gap-4 w-full">
           
-          {/* SEARCH BAR (Expands fully) */}
+          {/* Keresés */}
           <div className="flex-1 flex items-center bg-slate-900/50 border border-slate-800 rounded-xl px-4 focus-within:ring-2 focus-within:ring-blue-500/50 transition-all min-h-[48px]">
             <Search className="text-slate-500 w-5 h-5 shrink-0 mr-3" />
             <input
@@ -299,10 +296,10 @@ const handleSaveProduct = async (e: React.FormEvent) => {
             />
           </div>
           
-          {/* ACTION BUTTONS (Stack on mobile, row on desktop) */}
+          {/* Gombok */}
           <div className="flex flex-row flex-wrap sm:flex-nowrap gap-3 shrink-0">
             
-            {/* CSV Upload */}
+            {/* CSV Feltöltés */}
             <button 
               onClick={() => { setIsCsvModalOpen(true); setCsvResult(null); setCsvFile(null); }}
               className="flex-1 sm:flex-none flex items-center justify-center bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600/30 border border-emerald-500/30 rounded-xl px-4 py-2.5 transition-colors min-h-[48px]"
@@ -311,7 +308,7 @@ const handleSaveProduct = async (e: React.FormEvent) => {
               <FileUp className="w-5 h-5" />
             </button>
 
-            {/* Shopping List Combo */}
+            {/* Bevásárlólista */}
             <div className="flex-1 sm:flex-none flex items-center bg-orange-500/10 border border-orange-500/30 rounded-xl transition-colors focus-within:border-orange-500/60 focus-within:bg-orange-500/20 min-h-[48px]">
               <div className="flex items-center px-3 border-r border-orange-500/30 h-full">
                 <span className="text-orange-400/80 text-sm font-medium mr-2 hidden sm:block">Határ:</span>
@@ -334,7 +331,7 @@ const handleSaveProduct = async (e: React.FormEvent) => {
               </button>
             </div>
 
-            {/* Add Product */}
+            {/* Új Termék */}
             <button 
               onClick={() => setIsModalOpen(true)}
               className="flex-1 sm:flex-none flex items-center justify-center bg-blue-600 hover:bg-blue-500 text-white rounded-xl px-4 py-2.5 font-medium transition-colors min-h-[48px]"
@@ -433,7 +430,7 @@ const handleSaveProduct = async (e: React.FormEvent) => {
         </div>
       )}
 
-      {/* NEW PRODUCT MODAL */}
+      {/* ÚJ TERMÉK MODAL */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto">
           <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-xl p-6 shadow-2xl relative my-8">
@@ -441,7 +438,7 @@ const handleSaveProduct = async (e: React.FormEvent) => {
             <button 
               onClick={() => {
                setIsModalOpen(false);
-                setEditingId(null); // <--- Add this to reset the mode!
+                setEditingId(null); 
                 setNewProduct({ PName: '', Brand: '', PCName: '', Unit: 'db', Price: '', Currency: 'HUF', Stock: '', Description: '' });
               }} 
               className="absolute top-4 right-4 text-slate-400 hover:text-white transition-colors"
@@ -455,7 +452,7 @@ const handleSaveProduct = async (e: React.FormEvent) => {
 
             <form onSubmit={handleSaveProduct} className="space-y-4">
               
-              {/* Row 1: Termék neve és Márka */}
+              {/* 1. Sor: Termék neve és Márka */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-slate-300 mb-1">Termék neve</label>
@@ -481,7 +478,7 @@ const handleSaveProduct = async (e: React.FormEvent) => {
                 </div>
               </div>
 
-              {/* Row 2: Kategória és Egység */}
+              {/* 2. Sor: Kategória és Egység */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-slate-300 mb-1">Kategória</label>
@@ -508,7 +505,7 @@ const handleSaveProduct = async (e: React.FormEvent) => {
                 </div>
               </div>
 
-              {/* Row 3: Ár és Készlet */}
+              {/* 3. Sor: Ár és Készlet */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-slate-300 mb-1">Eladási Ár (Ft)</label>
@@ -536,7 +533,7 @@ const handleSaveProduct = async (e: React.FormEvent) => {
                 </div>
               </div>
 
-              {/* Row 4: Leírás */}
+              {/* 4. Sor: Leírás */}
               <div>
                 <label className="block text-sm font-medium text-slate-300 mb-1">Leírás (Opcionális)</label>
                 <textarea 
@@ -563,7 +560,7 @@ const handleSaveProduct = async (e: React.FormEvent) => {
         </div>
       )}
 
-      {/* CSV UPLOAD MODAL */}
+      {/* CSV Feltöltés MODAL */}
       {isCsvModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto">
           <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-lg p-6 shadow-2xl relative my-8">
@@ -592,7 +589,7 @@ const handleSaveProduct = async (e: React.FormEvent) => {
             </div>
             
 
-            {/* Step 2: Upload Form */}
+            {/* Feltöltés űrlap */}
             <form onSubmit={handleUploadCsv}>
               <div className="mb-6">
                 <input 
@@ -604,7 +601,7 @@ const handleSaveProduct = async (e: React.FormEvent) => {
                 />
               </div>
 
-              {/* Upload Results Display */}
+              {/* Feltöltés eredményei */}
               {csvResult && (
                 <div className={`mb-6 p-4 rounded-xl border ${csvResult.stats?.failed > 0 ? 'bg-orange-500/10 border-orange-500/20' : 'bg-emerald-500/10 border-emerald-500/20'}`}>
                   <h4 className="text-white font-bold mb-2">{csvResult.message}</h4>
@@ -614,7 +611,7 @@ const handleSaveProduct = async (e: React.FormEvent) => {
                     <span className="text-red-400">Sikertelen: {csvResult.stats?.failed}</span>
                   </div>
                   
-                  {/* Show specific errors if any rows failed */}
+                  {/* Hibaüzenetek */}
                   {csvResult.errors && csvResult.errors.length > 0 && (
                     <div className="mt-3 max-h-32 overflow-y-auto text-xs text-orange-300 space-y-1 bg-black/20 p-2 rounded">
                       {csvResult.errors.map((err: any, i: number) => (

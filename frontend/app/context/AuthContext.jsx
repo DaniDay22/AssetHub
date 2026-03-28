@@ -32,14 +32,14 @@ export const AuthProvider = ({ children }) => {
       console.error('Invalid token:', error);
     }
     
-    window.location.href = '/dashboard'; // Force reload to update context
+    window.location.href = '/dashboard'; // Újratöltés a dashboardra, hogy a context frissüljön és a jogosultságok érvényesüljenek.
   };
 
   const logout = () => {
     document.cookie = 'token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax';
     localStorage.removeItem('token');
     setUser(null);
-    window.location.href = '/auth/login'; // Force reload to clear context
+    window.location.href = '/auth/login'; // Újratöltés a dashboardra, hogy a context frissüljön és a jogosultságok érvényesüljenek.
   };
 
   return (

@@ -1,6 +1,5 @@
 'use client';
 
-// FIXED IMPORT: Always use 'next/navigation' in the App Router!
 import { usePathname } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link'; 
@@ -8,7 +7,7 @@ import Link from 'next/link';
 export default function Footer(){
   const pathname = usePathname();
 
-  // If the URL starts with /dashboard, return null (don't render the footer)
+  // Ha a felhasználó a dashboard valamelyik oldalán van, akkor ne jelenítsük meg a láblécet, hogy ne zavarja a dashboard UI-t.
   if (pathname?.startsWith('/dashboard')) {
     return null;
   }

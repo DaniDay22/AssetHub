@@ -19,19 +19,19 @@ const authenticationToken = (req, res, next) => {
     });
 };
 
-// GET: List all stores for this franchise
+// GET: Listázza a franchise-hoz tartozó boltokat, rendezve név szerint. Minden bolthoz visszaadjuk a dolgozók számát is, hogy a frontend könnyen meg tudja jeleníteni ezt az információt a bolt listában.
 router.get('/List', authenticationToken, async (req, res) => {
     try {
         const { AuthLv, FranchiseId } = req.user;
 
-        // Security: Only Owners (1) and Managers (2) can manage stores
+        // Security: Csak a franchise adminisztrátorok és tulajdonosok láthatják a boltok listáját, hogy egy dolgozó ne láthassa más franchise-hoz tartozó boltok adatait.
         if (AuthLv > 2) {
             return res.status(403).json({ success: false, error: "Ehhez a művelethez nincs jogosultságod!" });
         }
 
         const pool = await mssql.connect(config);
         
-        // We include a subquery to count employees at each store!
+        // subquery-val lekérjük a dolgozók számát minden bolthoz, hogy ne kelljen külön lekérdezést futtatni minden bolt esetén. Ez optimalizálja a teljesítményt, különösen ha sok bolt van egy franchise-hoz tartozóan.
         const result = await pool.request()
             .input('FranchiseId', mssql.Int, FranchiseId)
             .query(`
@@ -52,7 +52,7 @@ router.get('/List', authenticationToken, async (req, res) => {
     }
 });
 
-// POST: Add a new store
+// POST: Új bolt hozzáadása
 router.post('/Add', authenticationToken, async (req, res) => {
     try {
         const { AuthLv, FranchiseId } = req.user;
@@ -79,7 +79,7 @@ router.post('/Add', authenticationToken, async (req, res) => {
     }
 });
 
-// PUT: Edit an existing store
+// PUT: Létező bolt szerkesztése.
 router.put('/:id', authenticationToken, async (req, res) => {
     try {
         const { AuthLv, FranchiseId } = req.user;
@@ -90,7 +90,7 @@ router.put('/:id', authenticationToken, async (req, res) => {
 
         const pool = await mssql.connect(config);
 
-        // Security: Ensure this store actually belongs to their franchise!
+        // Security: Megbizonyosodunk arról, hogy a szerkeszteni kívánt bolt valóban a saját franchise-unkhoz tartozik, hogy egy dolgozó ne tudja más franchise-hoz tartozó boltok adatait módosítani.
         const check = await pool.request()
             .input('StoreId', mssql.Int, storeId)
             .input('FranchiseId', mssql.Int, FranchiseId)

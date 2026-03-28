@@ -1,7 +1,7 @@
 'use client';
 import React, { useState, useEffect } from 'react';
 import { useStores } from '../../context/StoreContext';
-import { Search, Plus, Mail, Store, User, Loader2, X, ChevronDown, RefreshCw, Trash2, Pencil, Phone } from 'lucide-react';
+import { Search, Plus, Mail, Store, Loader2, X, ChevronDown, RefreshCw, Trash2, Pencil, Phone } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
 export default function EmployeesPage() {
@@ -11,9 +11,9 @@ export default function EmployeesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
-  
+
   const [isModalOpen, setIsModalOpen] = useState(false);
-  
+
   const [newEmployee, setNewEmployee] = useState({
     name: '',
     email: '',
@@ -27,7 +27,7 @@ export default function EmployeesPage() {
   const [isEditMode, setIsEditMode] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
 
-  //THE AUTO-PASSWORD GENERATOR
+  //A jelszó generátor 10 karakter hosszú, és tartalmaz nagybetűket, kisbetűket, számokat és speciális karaktereket is.
   const generateTempPassword = () => {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%';
     let pass = '';
@@ -37,7 +37,7 @@ export default function EmployeesPage() {
     return pass;
   };
 
- // Opens a clean slate for a NEW hire
+  // Modal megnyitása üres űrlappal új alkalmazott létrehozásához
   const openModal = () => {
     setIsEditMode(false);
     setEditingId(null);
@@ -47,31 +47,31 @@ export default function EmployeesPage() {
     setIsModalOpen(true);
   };
 
-  // Opens the modal pre-filled with EXISTING data
+  // Modal megnyitása kitöltött űrlappal meglévő alkalmazott szerkesztéséhez
   const openEditModal = (emp: any) => {
     setIsEditMode(true);
     setEditingId(emp.Id);
-    
-    // Convert SQL date to YYYY-MM-DD for the HTML input
+
+    // Konvertáljuk a DoB-t ISO formátumra, hogy a date inputban helyesen jelenjen meg. Ha nincs DoB, akkor üres stringet használunk.
     const formattedDate = emp.DoB ? new Date(emp.DoB).toISOString().split('T')[0] : '';
 
     setNewEmployee({
-      name: emp.Name || '', 
-      email: emp.Email || '', 
-      password: '', // We don't touch passwords during a profile edit
-      authLv: emp.AuthLv || 3, 
-      phone: emp.Phone || '', 
-      doB: formattedDate, 
+      name: emp.Name || '',
+      email: emp.Email || '',
+      password: '', // Jelszót nem töltünk be szerkesztéskor, csak új alkalmazottnál generálunk ideiglenes jelszót.
+      authLv: emp.AuthLv || 3,
+      phone: emp.Phone || '',
+      doB: formattedDate,
       salary: emp.Salary || ''
     });
     setIsModalOpen(true);
   };
 
 
-  // 2. Fetch Employees WHENEVER the selected store changes
+  // Betöltjük az alkalmazottakat, amikor a selectedStoreId változik (tehát amikor a bolt kiválasztása megtörténik vagy megváltozik).
   useEffect(() => {
     const fetchEmployees = async () => {
-      // Don't fetch if the store hasn't been set yet
+      // Ha nincs kiválasztott bolt, akkor nem próbáljuk meg lekérni az alkalmazottakat.
       if (!selectedStoreId) return;
 
       setLoading(true);
@@ -82,11 +82,11 @@ export default function EmployeesPage() {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         const json = await res.json();
-        
+
         if (res.ok && json.success) {
-           setEmployees(json.data);
+          setEmployees(json.data);
         } else {
-           setError('Nem sikerült betölteni az alkalmazottakat.');
+          setError('Nem sikerült betölteni az alkalmazottakat.');
         }
       } catch (err) {
         console.error("Hiba az alkalmazottak betöltésekor:", err);
@@ -97,7 +97,7 @@ export default function EmployeesPage() {
     };
 
     fetchEmployees();
-  }, [selectedStoreId]); 
+  }, [selectedStoreId]);
 
   const filteredEmployees = employees.filter(emp => {
     const name = emp?.Name || '';
@@ -106,24 +106,24 @@ export default function EmployeesPage() {
     return name.toLowerCase().includes(search) || email.toLowerCase().includes(search);
   });
 
- const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       const token = localStorage.getItem('token');
-      
-      const url = isEditMode 
-        ? `http://localhost:5000/api/employees/${editingId}` 
+
+      const url = isEditMode
+        ? `http://localhost:5000/api/employees/${editingId}`
         : 'http://localhost:5000/api/employees/Add';
-      
+
       const method = isEditMode ? 'PUT' : 'POST';
 
       const res = await fetch(url, {
         method: method,
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ ...newEmployee, storeId: selectedStoreId }) 
+        body: JSON.stringify({ ...newEmployee, storeId: selectedStoreId })
       });
-      
-      // NEW: SAFETY CHECK
+
+      // Biztonsági ellenőrzés
       const contentType = res.headers.get("content-type");
       if (!contentType || !contentType.includes("application/json")) {
         const textError = await res.text();
@@ -133,15 +133,15 @@ export default function EmployeesPage() {
       }
 
       const json = await res.json();
-      
+
       if (json.success) {
         if (!isEditMode) {
-           alert(`Sikeres! Az új alkalmazott ideiglenes jelszava: ${newEmployee.password}`);
+          alert(`Sikeres! Az új alkalmazott ideiglenes jelszava: ${newEmployee.password}`);
         }
-        setIsModalOpen(false); 
-        window.location.reload(); 
+        setIsModalOpen(false);
+        window.location.reload();
       } else {
-        alert(json.error); 
+        alert(json.error);
       }
     } catch (err) {
       console.error(err);
@@ -151,7 +151,7 @@ export default function EmployeesPage() {
 
   const handleDeleteEmployee = async (employeeId: number) => {
     if (!window.confirm("Biztosan törlöd ezt a dolgozót?")) return;
-    
+
     try {
       const token = localStorage.getItem('token');
       const res = await fetch(`http://localhost:5000/api/employees/${employeeId}`, {
@@ -179,41 +179,41 @@ export default function EmployeesPage() {
 
   return (
     <div className="flex-1 p-8 w-full max-w-7xl mx-auto relative min-h-full">
-      
-      {/* HEADER SECTION */}
+
+      {/* HEADER */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
-        
+
         <div className="flex flex-col sm:flex-row sm:items-center gap-6">
-          
-          
-          {/* The Dropdown UI */}
+
+
+          {/* Store Selection Dropdown */}
           {isOwner && stores.length > 1 ? (
-                          <div className="relative group">
-                                        <div className="flex items-center bg-slate-800/80 hover:bg-slate-700 border border-slate-700 rounded-xl px-4 py-2.5 transition-all cursor-pointer">
-                                          <Store className="w-5 h-5 text-blue-400 mr-3 shrink-0" />
-                                          <select 
-                                            value={selectedStoreId} 
-                                            onChange={(e) => setSelectedStoreId(e.target.value)}
-                                            className="bg-transparent text-white font-medium focus:outline-none appearance-none pr-8 cursor-pointer w-full min-w-[160px]"
-                                          >
-                                            {stores.map(store => (
-                                              <option key={store.Id} value={store.Id} className="bg-slate-800 text-white">
-                                                {store.Name}
-                                              </option>
-                                            ))}
-                                          </select>
-                                          <ChevronDown className="w-4 h-4 text-slate-400 absolute right-4 pointer-events-none group-hover:text-white transition-colors" />
-                                        </div>
-                                      </div>
-                          ) : (
-                         // If not an owner, just show the Store Name as a static badge
-                          <div className="flex items-center bg-slate-800/40 border border-slate-700/50 rounded-xl px-4 py-2.5">
-                           <Store className="w-5 h-5 text-blue-400 mr-3" />
-                           <span className="text-white font-medium">
-                             {stores.find(s => s.Id.toString() === selectedStoreId)?.Name || 'Betöltés...'}
-                           </span>
-                              </div>
-                          )}
+            <div className="relative group">
+              <div className="flex items-center bg-slate-800/80 hover:bg-slate-700 border border-slate-700 rounded-xl px-4 py-2.5 transition-all cursor-pointer">
+                <Store className="w-5 h-5 text-blue-400 mr-3 shrink-0" />
+                <select
+                  value={selectedStoreId}
+                  onChange={(e) => setSelectedStoreId(e.target.value)}
+                  className="bg-transparent text-white font-medium focus:outline-none appearance-none pr-8 cursor-pointer w-full min-w-[160px]"
+                >
+                  {stores.map(store => (
+                    <option key={store.Id} value={store.Id} className="bg-slate-800 text-white">
+                      {store.Name}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="w-4 h-4 text-slate-400 absolute right-4 pointer-events-none group-hover:text-white transition-colors" />
+              </div>
+            </div>
+          ) : (
+            // Ha nem tulajdonos, vagy csak egy boltja van, akkor egyszerűen csak megjelenítjük a bolt nevét egy nem interaktív elemként, hogy lássa a felhasználó melyik bolt adatait nézi.
+            <div className="flex items-center bg-slate-800/40 border border-slate-700/50 rounded-xl px-4 py-2.5">
+              <Store className="w-5 h-5 text-blue-400 mr-3" />
+              <span className="text-white font-medium">
+                {stores.find(s => s.Id.toString() === selectedStoreId)?.Name || 'Betöltés...'}
+              </span>
+            </div>
+          )}
         </div>
 
         <div className="flex items-center gap-4 w-full md:w-auto">
@@ -227,7 +227,7 @@ export default function EmployeesPage() {
               className="w-full bg-transparent py-2.5 text-white placeholder:text-slate-500 focus:outline-none"
             />
           </div>
-          <button 
+          <button
             onClick={openModal}
             className="flex items-center justify-center bg-blue-600 hover:bg-blue-500 text-white rounded-xl px-4 py-2.5 font-medium transition-colors whitespace-nowrap"
           >
@@ -246,53 +246,53 @@ export default function EmployeesPage() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pb-24">
           {filteredEmployees.map((emp, index) => (
-              <div key={index} className="bg-slate-900/40 border border-slate-800 rounded-2xl hover:border-slate-700 transition-colors group p-6">
-                
-                {/* Top Section */}
-                <div className="flex justify-between items-start mb-4">
-                  <div>
-                    {getAuthBadge(emp.AuthLv)}
-                    <h3 className="text-lg font-bold text-white leading-tight">
-                      {emp.Name}
-                    </h3>
-                  </div>
-                  
-                  {/* Action Buttons grouped on the right */}
-                  <div className="flex items-start gap-4">
-                    <button 
-                      onClick={() => openEditModal(emp)} 
-                      className="text-slate-500 hover:text-blue-400 transition-colors"
-                      title="Alkalmazott Szerkesztése"
-                    >
-                      <Pencil className="w-5 h-5" />
-                    </button>
-                    {/* NEW: Only show Delete if it's NOT the logged-in user */}
-                    
-                    {String(emp.Id) !== String(user?.UserId) && (
-                      <button 
-                        onClick={() => handleDeleteEmployee(emp.Id)} 
-                        className="text-slate-500 hover:text-red-400 transition-colors"
-                        title="Alkalmazott Törlése"
-                      >
-                        <Trash2 className="w-5 h-5" />
-                      </button>
-                    )}
-                  </div>
+            <div key={index} className="bg-slate-900/40 border border-slate-800 rounded-2xl hover:border-slate-700 transition-colors group p-6">
+
+              {/* Felső rész */}
+              <div className="flex justify-between items-start mb-4">
+                <div>
+                  {getAuthBadge(emp.AuthLv)}
+                  <h3 className="text-lg font-bold text-white leading-tight">
+                    {emp.Name}
+                  </h3>
                 </div>
 
-                {/* Bottom Section */}
-                <div className="space-y-2 pt-4 border-t border-slate-800/50">
-                  <div className="flex items-center text-sm text-slate-400">
-                    <Mail className="w-4 h-4 mr-2" /> {emp.Email}
-                  </div>
-                  {emp.Phone && (
-                    <div className="flex items-center text-sm text-slate-400">
-                      <Phone className="w-4 h-4 mr-2" /> {emp.Phone}
-                    </div>
+                {/* Gombok */}
+                <div className="flex items-start gap-4">
+                  <button
+                    onClick={() => openEditModal(emp)}
+                    className="text-slate-500 hover:text-blue-400 transition-colors"
+                    title="Alkalmazott Szerkesztése"
+                  >
+                    <Pencil className="w-5 h-5" />
+                  </button>
+                  {/* Delete Gomb csak akkor ha nem az aktuális felhasználó */}
+
+                  {String(emp.Id) !== String(user?.UserId) && (
+                    <button
+                      onClick={() => handleDeleteEmployee(emp.Id)}
+                      className="text-slate-500 hover:text-red-400 transition-colors"
+                      title="Alkalmazott Törlése"
+                    >
+                      <Trash2 className="w-5 h-5" />
+                    </button>
                   )}
                 </div>
-                
               </div>
+
+              {/* Alsó rész */}
+              <div className="space-y-2 pt-4 border-t border-slate-800/50">
+                <div className="flex items-center text-sm text-slate-400">
+                  <Mail className="w-4 h-4 mr-2" /> {emp.Email}
+                </div>
+                {emp.Phone && (
+                  <div className="flex items-center text-sm text-slate-400">
+                    <Phone className="w-4 h-4 mr-2" /> {emp.Phone}
+                  </div>
+                )}
+              </div>
+
+            </div>
           ))}
         </div>
       )}
@@ -310,35 +310,35 @@ export default function EmployeesPage() {
             </h2>
 
             <form onSubmit={handleSubmit} className="space-y-4">
-              {/* Row 1: Name & DOB */}
+              {/* 1. Sor: Név és Születési dátum */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-slate-300 mb-1">Teljes Név</label>
-                  <input type="text" required value={newEmployee.name} onChange={(e) => setNewEmployee({...newEmployee, name: e.target.value})} className="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-blue-500" />
+                  <input type="text" required value={newEmployee.name} onChange={(e) => setNewEmployee({ ...newEmployee, name: e.target.value })} className="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-blue-500" />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-slate-300 mb-1">Születési Dátum</label>
-                  <input type="date" required value={newEmployee.doB} onChange={(e) => setNewEmployee({...newEmployee, doB: e.target.value})} className="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-blue-500 [color-scheme:dark]" />
+                  <input type="date" required value={newEmployee.doB} onChange={(e) => setNewEmployee({ ...newEmployee, doB: e.target.value })} className="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-blue-500 [color-scheme:dark]" />
                 </div>
               </div>
 
-              {/* Row 2: Email & Phone */}
+              {/* 2. Sor: E-mail és Telefonszám */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-slate-300 mb-1">E-mail cím</label>
-                  <input type="email" required value={newEmployee.email} onChange={(e) => setNewEmployee({...newEmployee, email: e.target.value})} className="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-blue-500" />
+                  <input type="email" required value={newEmployee.email} onChange={(e) => setNewEmployee({ ...newEmployee, email: e.target.value })} className="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-blue-500" />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-slate-300 mb-1">Telefonszám</label>
-                  <input type="text" required value={newEmployee.phone} onChange={(e) => setNewEmployee({...newEmployee, phone: e.target.value})} className="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-blue-500" placeholder="+36..." />
+                  <input type="text" required value={newEmployee.phone} onChange={(e) => setNewEmployee({ ...newEmployee, phone: e.target.value })} className="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-blue-500" placeholder="+36..." />
                 </div>
               </div>
 
-              {/* Row 3: Role & Salary */}
+              {/* 3. Sor: Szerepkör és Fizetés */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-slate-300 mb-1">Szerepkör</label>
-                  <select value={newEmployee.authLv} onChange={(e) => setNewEmployee({...newEmployee, authLv: parseInt(e.target.value)})} className="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-blue-500">
+                  <select value={newEmployee.authLv} onChange={(e) => setNewEmployee({ ...newEmployee, authLv: parseInt(e.target.value) })} className="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-blue-500">
                     <option value={3}>Eladó</option>
                     <option value={2}>Üzletvezető</option>
                     <option value={1}>Tulajdonos</option>
@@ -346,17 +346,17 @@ export default function EmployeesPage() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-slate-300 mb-1">Fizetés (Opcionális)</label>
-                  <input type="number" value={newEmployee.salary} onChange={(e) => setNewEmployee({...newEmployee, salary: e.target.value})} className="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-blue-500" placeholder="pl. 400000" />
+                  <input type="number" value={newEmployee.salary} onChange={(e) => setNewEmployee({ ...newEmployee, salary: e.target.value })} className="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-blue-500" placeholder="pl. 400000" />
                 </div>
               </div>
 
-              {/* Only show the password generator if we are creating a NEW user */}
+              {/* Csak akkor jelenik meg, ha új felhasználót hozunk létre */}
               {!isEditMode && (
                 <div className="mt-2 p-3 bg-blue-500/10 border border-blue-500/30 rounded-lg">
                   <label className="block text-xs font-bold text-blue-400 uppercase tracking-wider mb-1">Generált Ideiglenes Jelszó</label>
                   <div className="flex justify-between items-center">
                     <span className="text-white font-mono text-lg">{newEmployee.password}</span>
-                    <button type="button" onClick={() => setNewEmployee({...newEmployee, password: generateTempPassword()})} className="text-slate-400 hover:text-white" title="Jelszó Újragenerálása">
+                    <button type="button" onClick={() => setNewEmployee({ ...newEmployee, password: generateTempPassword() })} className="text-slate-400 hover:text-white" title="Jelszó Újragenerálása">
                       <RefreshCw className="w-5 h-5" />
                     </button>
                   </div>

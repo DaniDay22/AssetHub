@@ -19,7 +19,7 @@ export default function StoresPage() {
     address: ''
   });
 
-  // Fetch Stores
+  // Lekérjük a boltok listáját a szerverről, amikor a komponens betöltődik. 
   useEffect(() => {
     const fetchStores = async () => {
       setLoading(true);
@@ -146,7 +146,7 @@ export default function StoresPage() {
             filteredStores.map((store, idx) => (
               <div key={idx} className="bg-slate-900/40 border border-slate-800 rounded-2xl p-6 hover:border-slate-700 transition-all group flex flex-col justify-between shadow-lg relative overflow-hidden">
                 
-                {/* Decorative background glow */}
+                {/* Dekoráció */}
                 <div className="absolute top-0 right-0 w-32 h-32 bg-blue-600/5 rounded-full blur-2xl -mr-10 -mt-10 pointer-events-none" />
 
                 <div>

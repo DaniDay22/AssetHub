@@ -1,11 +1,11 @@
 'use client';
-import { ArrowLeft, MousePointerClick } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 
 export default function DashboardPage() {
   return (
     <div className="flex-1 flex flex-col items-center justify-center w-full h-full text-center relative overflow-hidden bg-[#020617]">
       
-      {/* Glow Effect */}
+      {/* Dekoráció */}
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-blue-600/5 blur-[120px] rounded-full -z-10" />
 
       <div className="relative z-10 flex flex-col items-center justify-center">

@@ -34,48 +34,81 @@ const authenticationToken = (req, res, next) => {
     })
 }
 
-// GET: Készlet feltöltő sablon letöltése (Excel-kompatibilis, win1250 kódolással)
+// SMART GET: Kétféle sablon letöltése egy endpointból! Ha a query-ben van egy érvényes szám a threshold paraméterben, akkor csak a low-stock termékeket adja vissza (ez lesz a bevásárlólista). Ha nincs ilyen paraméter, vagy nem érvényes szám, akkor az összes terméket adja vissza (ez lesz a teljes készlet feltöltő sablon). Így elkerüljük, hogy két külön endpointot kelljen fenntartani, és a frontendnek is egyszerűbb dolga van, mert csak egy endpointot kell hívnia a sablon letöltéséhez, és dinamikusan megadhatja, hogy melyik sablont szeretné.
 router.get('/export-template/:storeId', authenticationToken, async (req, res) => {
     let pool;
     try {
         pool = await mssql.connect(config);
-
-        // 1. Lekérdezzük a kiválasztott bolt összes aktív termékét
-        const result = await pool.request()
-            .input('StoreId', mssql.Int, req.params.storeId)
-            .query(`
-                SELECT 
-                    S.Name AS StoreName,
-                    S.Address AS StoreAddress,
-                    P.Name AS ProductName,
-                    PC.Name AS CategoryName,
-                    P.Brand,
-                    P.Unit
-                FROM StoreInventory SI
-                JOIN Store S ON SI.StoreId = S.Id
-                JOIN Product P ON SI.ProductId = P.Id
-                JOIN ProductCategory PC ON P.CategoryId = PC.Id
-                WHERE SI.StoreId = @StoreId AND (SI.IsDeleted = 0 OR SI.IsDeleted IS NULL)
-            `);
-
-        // Ha véletlenül teljesen üres a bolt, akkor is adjunk vissza egy üres sablont fejlécekkel!
         
-        // 2. Fejléc összeállítása (Pontosan az, amit az import útvonal vár, pontosvesszőkkel!)
+        const storeId = req.params.storeId;
+        const thresholdQuery = req.query.threshold;
+        
+        let result;
+
+        // Megnézzük, hogy a threshold query paraméterben van-e érték, és ha igen, akkor az egy szám-e. Ha van ilyen paraméter, és érvényes szám, akkor csak a low-stock termékeket kérjük le (ez lesz a bevásárlólista). Ha nincs ilyen paraméter, vagy nem érvényes szám, akkor az összes terméket kérjük le (ez lesz a teljes készlet feltöltő sablon).
+        if (thresholdQuery !== undefined && thresholdQuery !== null && !isNaN(parseInt(thresholdQuery))) {
+            const lowStockThreshold = parseInt(thresholdQuery);
+            
+            result = await pool.request()
+                .input('StoreId', mssql.Int, storeId)
+                .input('Threshold', mssql.Int, lowStockThreshold)
+                .query(`
+                    SELECT 
+                        S.Name AS StoreName,
+                        S.Address AS StoreAddress,
+                        P.Name AS ProductName,
+                        PC.Name AS CategoryName,
+                        P.Brand,
+                        P.Unit
+                    FROM StoreInventory SI
+                    JOIN Store S ON SI.StoreId = S.Id
+                    JOIN Product P ON SI.ProductId = P.Id
+                    JOIN ProductCategory PC ON P.CategoryId = PC.Id
+                    WHERE SI.StoreId = @StoreId 
+                      AND (SI.IsDeleted = 0 OR SI.IsDeleted IS NULL) 
+                      AND SI.Stock <= @Threshold
+                `);
+        } 
+        // Ha nincs threshold paraméter, akkor az összes terméket lekérjük, hogy a teljes készlet feltöltő sablont generáljuk.
+        else {
+            result = await pool.request()
+                .input('StoreId', mssql.Int, storeId)
+                .query(`
+                    SELECT 
+                        S.Name AS StoreName,
+                        S.Address AS StoreAddress,
+                        P.Name AS ProductName,
+                        PC.Name AS CategoryName,
+                        P.Brand,
+                        P.Unit
+                    FROM StoreInventory SI
+                    JOIN Store S ON SI.StoreId = S.Id
+                    JOIN Product P ON SI.ProductId = P.Id
+                    JOIN ProductCategory PC ON P.CategoryId = PC.Id
+                    WHERE SI.StoreId = @StoreId 
+                      AND (SI.IsDeleted = 0 OR SI.IsDeleted IS NULL)
+                `);
+        }
+
+        // Fejléc összeállítása (pontosan az, amit az import vár!)
+        // Ha ezt a sort megváltoztatod, akkor az előző .patch route-nál IS MEG KELL VÁLTOZTATNI!! Figyelmeztetve lettél
         let csvContent = "Bolt név;Bolt cím;Termék név;Termék kategória név;Márka;Egység;Hozzáadandó áru száma\n";
 
-        // 3. Sorok hozzáadása (A végén a 0 a hozzáadandó alapértelmezett mennyiség)
+        // Sorok hozzáadása
         result.recordset.forEach(row => {
             csvContent += `${row.StoreName};${row.StoreAddress};${row.ProductName};${row.CategoryName};${row.Brand};${row.Unit};0\n`;
         });
 
-        // 4. Konvertálás Windows-1250-re (Hogy az Excel ne rontsa el a magyar ékezeteket!)
+        // 4. Konvertálás Windows-1250-re (Excel barát ékezetek)
         const buffer = iconv.encode(csvContent, 'win1250');
 
-        // 5. Header-ek beállítása a fájl letöltéshez
+        // 5. Header-ek beállítása a letöltéshez
         res.setHeader('Content-Type', 'text/csv; charset=windows-1250');
-        res.setHeader('Content-Disposition', `attachment; filename=keszlet_sablon_bolt_${req.params.storeId}.csv`);
+        
+        // Dinamikus fájlnév attól függően, hogy melyiket töltjük le
+        const fileNamePrefix = thresholdQuery ? 'bevasarlista' : 'keszlet_sablon';
+        res.setHeader('Content-Disposition', `attachment; filename=${fileNamePrefix}_bolt_${storeId}.csv`);
 
-        // Fájl elküldése (Itt nem szabad res.json-t is küldeni, csak a buffert!)
         res.send(buffer);
 
     } catch (error) {
@@ -91,17 +124,17 @@ router.get('/All', authenticationToken, async (req, res) => {
     try {
         const { AuthLv, FranchiseId, StoreId } = req.user;
 
-        // Block level 4 (Cashiers) from the global product management page if needed
+        // Blokkoljuk az Eladókat(AuthLv == 4), mert nincs értelme, hogy ők itt legyenek
         if (AuthLv == 4) {
             return res.status(403).json({ success: false, error: "Ehhez a művelethez nincs jogosultságod!" });
         }
 
-        // 1. Grab the storeId from the URL (or fallback to the employee's home store)
+        // Megnézzük, hogy a frontend küldött-e storeId-t query-ben. Ha igen, akkor azt használjuk, ha nem, akkor a tokenben lévő StoreId-t (ez az alapértelmezett boltja a dolgozónak).
         const targetStoreId = req.query.storeId ? parseInt(req.query.storeId) : StoreId;
 
         const pool = await mssql.connect(config);
 
-        // 2. SECURITY: Verify this store actually belongs to their Franchise
+        // SECURITY: Megnézzük, hogy a megadott storeId valóban a saját franchise-unkhoz tartozik-e. Ez megakadályozza, hogy egy dolgozó más franchise-hoz tartozó bolt készletét lássa.
         const storeCheck = await pool.request()
             .input('TargetStoreId', mssql.Int, targetStoreId)
             .input('MyFranchiseId', mssql.Int, FranchiseId)
@@ -111,7 +144,7 @@ router.get('/All', authenticationToken, async (req, res) => {
             return res.status(403).json({ success: false, error: "Nincs jogosultságod ehhez a bolthoz!" });
         }
 
-        // 3. Fetch ONLY the inventory for that specific store!
+        // Ha minden oké, akkor lekérjük a termékeket a megadott storeId-hoz. Ez lehet az alapértelmezett StoreId a tokenből, vagy egy másik, amit a frontend küldött query-ben (ha magasabb jogosultságú).
         const result = await pool.request()
             .input('TargetStoreId', mssql.Int, targetStoreId)
             .query(`
@@ -143,14 +176,14 @@ router.get('/All', authenticationToken, async (req, res) => {
 router.post('/', authenticationToken, async (req, res) => {
     let pool;
     try{
-        // 1. ADDED StoreId to the destructured body!
+        // A frontend küldje el a StoreId-t, hogy melyik bolt raktárába szeretné feltölteni a terméket. Ha nem küldi el, akkor használjuk a tokenben lévő StoreId-t (ez az alapértelmezett boltja a dolgozónak).
         const {PName, PCName, Brand, Unit, Price, Currency, Stock, Description, StoreId} = req.body
         const {AuthLv, UserId} = req.user //Tokenből infó
 
         if(AuthLv == 4)
             return res.status(403).json({ success: false, error: "Ehhez a művelethez nincs jogosultságod!" });
 
-        // Fallback: If frontend didn't send a StoreId, use the user's default store
+        // Megnézzük, hogy a frontend küldött-e storeId-t. Ha igen, akkor azt használjuk, ha nem, akkor a tokenben lévő StoreId-t (ez az alapértelmezett boltja a dolgozónak).
         const targetStoreId = StoreId || req.user.StoreId;
 
         pool = await mssql.connect(config)
@@ -164,7 +197,7 @@ router.post('/', authenticationToken, async (req, res) => {
             .input('Currency', mssql.NVarChar, Currency)
             .input('Stock', mssql.Decimal, Stock)
             .input('Description', mssql.NVarChar, Description)
-            .input('TargetStoreId', mssql.Int, targetStoreId) // NEW: Pass the StoreId to SQL
+            .input('TargetStoreId', mssql.Int, targetStoreId) 
             .query(`
                 DECLARE @CategoryId int;
                 DECLARE @ProductId int;
@@ -312,7 +345,7 @@ router.delete('/', authenticationToken, async (req, res) => {
 
         pool = await mssql.connect(config);
         await pool.request()
-            .input('StoreInventoryId', mssql.Int, StoreInvId) // Use consistent naming
+            .input('StoreInventoryId', mssql.Int, StoreInvId) 
             .input('currentProductId', mssql.Int, ProductId)
             .query(`
                 BEGIN TRANSACTION
@@ -351,6 +384,7 @@ router.delete('/', authenticationToken, async (req, res) => {
 });
 
 // Innentől kezdve a fájl betöltés/írás endpointok találhatók -> Aki ide belép, haggyon fel minden reménnyel
+
 router.patch('/', authenticationToken, upload.single('RestockFile'), async (req, res) => {
     let pool;
     try{
@@ -358,7 +392,7 @@ router.patch('/', authenticationToken, upload.single('RestockFile'), async (req,
 
         let fileContent;
 
-        // 1. AUTO-DETECT ENCODING: Check for Excel's hidden UTF-8 BOM signature (EF BB BF)
+        // Autómatikusan felismerjük a kódolást (UTF-8 vagy Windows-1250), hogy a magyar ékezetek ne menjenek tönkre. Ez azért fontos, mert az Excel gyakran Windows-1250-ben menti a fájlokat, és ha ezt nem vesszük figyelembe, akkor az ékezetes karakterek helyett kérdőjeleket fogunk látni.
         if (req.file.buffer[0] === 0xEF && req.file.buffer[1] === 0xBB && req.file.buffer[2] === 0xBF) {
             console.log("Encoding Detected: UTF-8");
             fileContent = req.file.buffer.toString('utf8');
@@ -367,21 +401,21 @@ router.patch('/', authenticationToken, upload.single('RestockFile'), async (req,
             fileContent = iconv.decode(req.file.buffer, 'win1250');
         }
 
-        // 2. AUTO-DETECT DELIMITER: Look at the first line to see if Excel used commas or semicolons
+        // Autómatikusan felismerjük a delimiter-t (pontosvessző vagy vessző), hogy ne legyen gond, ha a fájlban véletlenül nem pontosvessző van elválasztóként. Ez azért fontos, mert bár a sablon pontosvesszővel van megadva, de előfordulhat, hogy valaki véletlenül vesszőt használ elválasztóként, és így ne legyen hiba a feldolgozás során.
         const firstLine = fileContent.split('\n')[0];
         const detectedDelimiter = firstLine.includes(';') ? ';' : ',';
         console.log("Delimiter Detected:", detectedDelimiter);
 
-        // 3. PARSE THE FILE using the auto-detected settings
+        // Parse-oljuk a CSV-t a dinamikusan detektált delimiterrel, és megadjuk a megfelelő opciókat, hogy a magyar ékezetek ne menjenek tönkre, és hogy a fejléc alapján kapjunk kulcsokat az objektumokhoz. Ez megkönnyíti a további feldolgozást, mert így már nem kell indexekkel bajlódni, hanem közvetlenül a kulcsokkal tudunk dolgozni.
         const records = parse(fileContent, {
             columns: true, 
             skip_empty_lines: true,
             delimiter: detectedDelimiter,
             trim: true, 
-            bom: true // Strips out the invisible characters!
+            bom: true // Levágja az esetleges BOM-ot, ha maradt volna a fájl elején, ami szintén problémákat okozhat a feldolgozás során.
         });
 
-        console.log("Sikeres beolvasás:", records[0]); // Let's peek at the first row!
+        console.log("Sikeres beolvasás:", records[0]); // Csak az első rekordot logoljuk, hogy ne legyen túl sok adat a konzolon.
 
         const jsonData = JSON.stringify(records);
 
@@ -457,55 +491,6 @@ router.patch('/', authenticationToken, upload.single('RestockFile'), async (req,
     }
 })
 
-router.get('/export-template/:storeId', authenticationToken, async (req, res) => {
-    let pool;
-    try {
-        const queryThreshold = parseInt(req.query.threshold);
-        const lowStockThreshold = (!isNaN(queryThreshold) && queryThreshold >= 0) ? queryThreshold : 10;
-        pool = await mssql.connect(config)
 
-        const result = await pool.request()
-            .input('StoreId', mssql.Int, req.params.storeId)
-            .input('Threshold', mssql.Int, lowStockThreshold)
-            .query(`
-                SELECT 
-                    S.Name AS StoreName,
-                    S.Address AS StoreAddress,
-                    P.Name AS ProductName,
-                    PC.Name AS CategoryName,
-                    P.Brand,
-                    P.Unit
-                FROM StoreInventory SI
-                JOIN Store S ON SI.StoreId = S.Id
-                JOIN Product P ON SI.ProductId = P.Id
-                JOIN ProductCategory PC ON P.CategoryId = PC.Id
-                WHERE SI.StoreId = @StoreId AND SI.IsDeleted = 0 AND SI.Stock <= @Threshold
-            `);
-
-        // Fejléc összeállítása (pontosan az, amit az import vár!)
-        // Ha ezt a sort megváltoztatod, akkor az előző .patch route-nál IS MEG KELL VÁLTOZTATNI!! Figyelmeztetve lettél
-        let csvContent = "Bolt név;Bolt cím;Termék név;Termék kategória név;Márka;Egység;Hozzáadandó áru száma\n";
-
-        // Sorok hozzáadása
-        result.recordset.forEach(row => {
-            csvContent += `${row.StoreName};${row.StoreAddress};${row.ProductName};${row.CategoryName};${row.Brand};${row.Unit};0\n`;
-        });
-
-        // Konvertálás Windows-1250-re (Excel barát ékezetek)
-        const buffer = iconv.encode(csvContent, 'win1250');
-
-        // Header-ek beállítása a letöltéshez
-        res.setHeader('Content-Type', 'text/csv; charset=windows-1250');
-        res.setHeader('Content-Disposition', `attachment; filename=keszlet_sablon_bolt_${req.params.storeId}.csv`);
-
-        res.send(buffer);
-    } catch (error) {
-        console.error("Fetch ERROR:", error)
-        res.status(500).json({success: false, message: "Hiba a sablon generálása közben!"})
-    }
-    finally{
-        if (pool) pool.close()
-    }
-});
 
 module.exports = router

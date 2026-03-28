@@ -1,4 +1,4 @@
-require('dotenv').config(); // <-- Make sure .config() is called if you rely on process.env here!
+require('dotenv').config(); 
 const express = require('express');
 const mssql = require('mssql');
 const config = require('../config');
@@ -26,8 +26,7 @@ const authenticationToken = (req, res, next) => {
     });
 };
 
-// GET: Fetch all stores belonging to the user's franchise
-// FIX: Added 'authenticationToken' middleware here!
+// GET: Lekéri a dolgozóhoz tartozó boltok listáját, hogy a dolgozó választhasson, melyik bolt dolgozóit szeretné látni/szerkeszteni.
 router.get('/my-stores', authenticationToken, async (req, res) => {
     let pool;
     try {
@@ -48,7 +47,7 @@ router.get('/my-stores', authenticationToken, async (req, res) => {
     }  
 });
 
-// GET: Fetch all employees for the user's store
+// GET: Lekéri egy adott bolt dolgozóit. A dolgozó csak a saját franchise-án belül, és csak a saját boltjához tartozó dolgozókat láthatja (kivéve ha magasabb jogosultságú, akkor több boltot is láthat).
 router.get('/List', authenticationToken, async (req, res) => {
     let pool;
     try {
@@ -89,11 +88,10 @@ router.get('/List', authenticationToken, async (req, res) => {
     }  
 });
 
-// POST: Add a new employee
+// POST: Új dolgozó hozzáadása. A dolgozó csak a saját franchise-án belül, és csak a saját boltjához tartozó dolgozókat adhatja hozzá (kivéve ha magasabb jogosultságú, akkor több bolthoz is adhat hozzá).
 router.post('/Add', authenticationToken, async (req, res) => {
     let pool;
     try {
-        // FIX: Destructure 'storeId' from req.body too!
         const { name, email, password, authLv, phone, doB, salary, storeId } = req.body;
         const creatorId = req.user.UserId;
         const creatorAuthLv = req.user.AuthLv;
@@ -106,12 +104,12 @@ router.post('/Add', authenticationToken, async (req, res) => {
             return res.status(400).json({ success: false, error: "Minden kötelező mezőt ki kell tölteni!" });
         }
 
-        // Determine which store to put them in (fallback to creator's store if missing)
+        // Ha a storeId nincs megadva, akkor a tokenben lévő StoreId-t használjuk. Ez biztosítja, hogy ha egy dolgozó nem ad meg storeId-t, akkor automatikusan a saját boltjához lesz rendelve az új dolgozó.
         const targetStoreId = storeId ? parseInt(storeId) : req.user.StoreId;
 
         pool = await mssql.connect(config);
 
-        // Security: Ensure the target store actually belongs to this manager's franchise
+        // Ellenőrizzük, hogy a megadott storeId valóban a saját franchise-unkhoz tartozik-e. Ez megakadályozza, hogy egy dolgozó más franchise-hoz tartozó boltjához adjon hozzá dolgozót.
         const storeCheck = await pool.request()
             .input('StoreId', mssql.Int, targetStoreId)
             .input('FranchiseId', mssql.Int, req.user.FranchiseId)
@@ -140,7 +138,7 @@ router.post('/Add', authenticationToken, async (req, res) => {
             .input('Phone', mssql.NVarChar, phone)
             .input('DoB', mssql.Date, doB) 
             .input('Salary', mssql.Int, salary ? parseInt(salary) : null) 
-            .input('StoreId', mssql.Int, targetStoreId) // Assign to specific store!
+            .input('StoreId', mssql.Int, targetStoreId)
             .input('FranchiseId', mssql.Int, req.user.FranchiseId)
             .query(`
                 INSERT INTO Employee (Name, Email, Password, AuthLv, StoreId, Phone, DoB, HiredAt, Salary, FranchiseId, Currency, IsActive)
@@ -154,8 +152,7 @@ router.post('/Add', authenticationToken, async (req, res) => {
     }  
 });
 
-// DELETE: Remove an employee
-// FIX: Changed from router.put to router.delete!
+// DELETE: Dolgozó törlése (valójában csak inaktiválás). A dolgozó csak a saját franchise-án belül, és csak a saját boltjához tartozó dolgozókat törölheti (kivéve ha magasabb jogosultságú, akkor több bolthoz is törölhet).
 router.delete('/:id', authenticationToken, async (req, res) => {
     let pool;
     try {
@@ -189,7 +186,7 @@ router.delete('/:id', authenticationToken, async (req, res) => {
     }  
 });
 
-// PUT: Update an existing employee
+// PUT: Dolgozó adatainak frissítése. A dolgozó csak a saját franchise-án belül, és csak a saját boltjához tartozó dolgozókat szerkesztheti (kivéve ha magasabb jogosultságú, akkor több bolthoz is szerkesztheti).
 router.put('/:id', authenticationToken, async (req, res) => {
     let pool;
     try {

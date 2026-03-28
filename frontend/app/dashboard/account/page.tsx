@@ -1,11 +1,10 @@
 'use client';
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
-// Added the 'X' icon for the modal close button!
 import { User, Mail, Phone, Shield, Building2, Save, Loader2, KeyRound, X } from 'lucide-react';
 
 export default function AccountPage() {
-  const { user } = useAuth(); // Decoded JWT payload
+  const { user } = useAuth(); // Az AuthContext-ból lekérjük a bejelentkezett felhasználó adatait, hogy megjeleníthessük és szerkeszthessük azokat a fiókbeállítások oldalon.
   
   const [formData, setFormData] = useState({
     email: '',
@@ -25,7 +24,7 @@ export default function AccountPage() {
   const [passLoading, setPassLoading] = useState(false);
   const [passMessage, setPassMessage] = useState({ text: '', type: '' });
 
-  // Sync form with user data once loaded
+  // Szinkronizáljuk a formData-t a user adataival, amikor a user betöltődik vagy frissül, hogy a form mindig a legfrissebb adatokat mutassa.
   useEffect(() => {
     if (user) {
       setFormData({
@@ -76,7 +75,6 @@ export default function AccountPage() {
     setPassLoading(true);
     try {
       const token = localStorage.getItem('token');
-      // Make sure this URL matches where you put the backend route!
       const res = await fetch('http://localhost:5000/api/Auth/UpdatePassword', {
         method: 'PATCH',
         headers: { 
@@ -94,7 +92,7 @@ export default function AccountPage() {
       if (json.success) {
         setPassMessage({ text: 'Jelszó sikeresen megváltoztatva!', type: 'success' });
         setPasswordData({ oldPassword: '', newPassword: '', confirmPassword: '' });
-        setTimeout(() => setIsPasswordModalOpen(false), 2000); // Close after 2 seconds
+        setTimeout(() => setIsPasswordModalOpen(false), 2000); // Bezárjuk a modalt 2 másodperc múlva, hogy a felhasználó lássa a sikerüzenetet.
       } else {
         setPassMessage({ text: json.error || 'Hiba történt.', type: 'error' });
       }
@@ -122,7 +120,7 @@ export default function AccountPage() {
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
         
-        {/* LEFT COLUMN: Profile Summary */}
+        {/* BAL OSZLOP: Profil összegzés */}
         <div className="col-span-1 space-y-6">
           <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-6 shadow-xl">
             <div className="w-20 h-20 bg-blue-600/20 text-blue-500 rounded-full flex items-center justify-center mx-auto mb-4 border border-blue-500/30">
@@ -146,7 +144,7 @@ export default function AccountPage() {
           </div>
         </div>
 
-        {/* RIGHT COLUMN: Edit Form */}
+        {/* JOBB OSZLOP: Szerkesztő űrlap */}
         <div className="col-span-1 md:col-span-2 space-y-6">
           <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-6 md:p-8 shadow-xl">
             <h3 className="text-xl font-bold text-white mb-6">Kapcsolati Adatok</h3>
@@ -213,7 +211,7 @@ export default function AccountPage() {
             </form>
           </div>
 
-          {/* Password Section */}
+          {/* Jelszó Módosítása */}
           <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-6 md:p-8 shadow-xl">
              <div className="flex items-center justify-between">
                 <div>
@@ -232,7 +230,7 @@ export default function AccountPage() {
         </div>
       </div>
 
-      {/* PASSWORD MODAL */}
+      {/* JELSZÓ MODAL */}
       {isPasswordModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
           <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-md p-6 shadow-2xl relative">

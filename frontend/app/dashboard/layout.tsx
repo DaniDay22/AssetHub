@@ -9,10 +9,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const { user, logout } = useAuth();
   const pathname = usePathname();
   
-  // 1. STATE FOR MOBILE MENU
+  // MOBILE MENU STATE
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  // 2. CLOSE MENU AUTOMATICALLY WHEN CHANGING PAGES
+  // Minden alkalommal, amikor a pathname változik (tehát amikor a felhasználó navigál egy új oldalra), zárjuk be a mobil menüt, hogy ne maradjon nyitva véletlenül egy új oldalon.
   useEffect(() => {
     setIsMobileMenuOpen(false);
   }, [pathname]);
@@ -31,10 +31,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   });
 
   return (
-    // Changed to flex-col on mobile, flex-row on desktop so we can add a mobile header!
     <div className="flex-1 flex flex-col md:flex-row h-full w-full bg-[#020617] overflow-hidden font-sans relative">
       
-      {/* MOBILE HEADER (Only shows on phones) */}
+      {/* MOBILE HEADER (Csak telefonon jelenik meg) */}
       <div className="md:hidden flex items-center justify-between p-4 border-b border-slate-800 bg-[#020617] shrink-0 z-10">
         <div className="flex items-center gap-3 text-white font-bold text-lg">
           <Store className="text-blue-500 w-6 h-6" />
@@ -48,7 +47,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </button>
       </div>
 
-      {/* MOBILE OVERLAY (Darkens the background when menu is open) */}
+      {/* MOBILE OVERLAY (Elsötéti a háttérképet, amikor a menü nyitva van) */}
       {isMobileMenuOpen && (
         <div 
           className="md:hidden fixed inset-0 bg-black/70 backdrop-blur-sm z-40 transition-opacity"
@@ -63,7 +62,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
       `}>
         
-        {/* MOBILE CLOSE BUTTON (Inside Sidebar) */}
+        {/* MOBILE CLOSE BUTTON (A sidebar belső gombja) */}
         <div className="md:hidden flex justify-end p-4">
           <button 
             onClick={() => setIsMobileMenuOpen(false)}
@@ -92,7 +91,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             );
           })}
         </nav>
-        {/* --- ADD THIS NEW BOTTOM SECTION --- */}
         <div className="p-4 border-t border-slate-800 mt-auto md:hidden"> 
           <button 
             onClick={logout}
@@ -102,12 +100,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <span className="text-base font-semibold">Kijelentkezés</span>
           </button>
         </div>
-        {/* ----------------------------------- */}
         
       </aside>
 
       {/* PAGE CONTENT */}
-      {/* Removed the fixed height calc on mobile so it scrolls naturally */}
       <main className="flex-1 flex flex-col h-full md:h-[calc(100vh-96px)] relative overflow-y-auto bg-[#020617]">
         {children}
       </main>

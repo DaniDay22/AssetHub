@@ -36,7 +36,7 @@ router.put('/UpdateProfile', authenticationToken, async (req, res) => {
 
         const pool = await mssql.connect(config);
 
-        // Check if email is already taken by someone else
+        // Megnézzük, hogy a megadott email cím nem foglalt-e már egy másik felhasználó által (kivéve saját magunkat)
         const emailCheck = await pool.request()
             .input('Email', mssql.NVarChar, email)
             .input('UserId', mssql.Int, userId)
@@ -61,7 +61,8 @@ router.put('/UpdateProfile', authenticationToken, async (req, res) => {
 //Routes
 //Regisztráció Menedzserként (Boltot is felvesszük)
 router.post('/Register/Manager', async (req, res) => {
-    let pool; // Moved outside so the 'finally' block can always close the connection
+    
+    let pool; 
     
     try {
         const {name, password, email, phone, dob, storeName, storeAddress} = req.body;
@@ -69,7 +70,7 @@ router.post('/Register/Manager', async (req, res) => {
 
         pool = await mssql.connect(config);
 
-        // 1. Check if the email is already registered
+        // Megnézzük, hogy a megadott email cím nem foglalt-e már egy másik felhasználó által
         const accountExists = await pool.request()
             .input('Email', mssql.NVarChar, emailFormatted)
             .query(`SELECT TOP 1 Id FROM Employee WHERE Email = @Email`);
@@ -78,7 +79,7 @@ router.post('/Register/Manager', async (req, res) => {
             return res.status(400).json({success: false, error: "Ez az email már használatban van!"});
         }
 
-        // 2. Check if the store name and address already exist
+        // Megnézzük, hogy a megadott bolt nem létezik-e már (ne lehessen ugyanazzal a névvel és címmel duplikált boltot létrehozni)
         const storeExists = await pool.request()
             .input('StoreName', mssql.NVarChar, storeName)
             .input('StoreAddress', mssql.NVarChar, storeAddress)
@@ -88,17 +89,17 @@ router.post('/Register/Manager', async (req, res) => {
             return res.status(400).json({success: false, error: "Ez a bolt már létezik!"});
         }
         
-        // 3. Hash the password for the database
+        // A jelszót hash-eljük és Buffer formátumba konvertáljuk, hogy kompatibilis legyen a VarBinary adattípussal
         const hashedPass = await bcrypt.hash(password, 10);
         const bufferedPass = Buffer.from(hashedPass);
         
-        // 4. Generate a brand new FranchiseId for this new company
+        // Csinálunk egy új FranchiseId-t kell generálnunk, mivel a Store táblában ez kötelező mező. Ez egy egyszerű lekérdezéssel megoldható, ahol megnézzük a jelenlegi maximum FranchiseId-t és hozzáadunk 1-et.
         const franchiseCheck = await pool.request().query(`
             SELECT ISNULL(MAX(FranchiseId), 0) + 1 AS NewId FROM Store
         `);
         const newFranchiseId = franchiseCheck.recordset[0].NewId;
 
-        // 5. Execute the Transaction (Insert Store -> Get StoreId -> Insert Employee)
+        // Elvégezzük a tranzakciót, ahol először létrehozzuk a boltot, majd a hozzá tartozó menedzsert. Ha bármelyik lépés hibát dob, az egész tranzakció visszagördül.
         await pool.request()
             .input('Name', mssql.NVarChar, name)
             .input('Password', mssql.VarBinary, bufferedPass)
@@ -156,6 +157,7 @@ router.post('/Register/Manager', async (req, res) => {
 
 //Regisztráció alkalmazottnak -> Csak a Menedzser(ek) tudják ezt elérni!!
 router.post('/Register/Employee', async (req, res) => {
+    let pool;
     try{
         const {name, email, phone, dob, salary, authName, creatorId} = req.body
         const emailFormatted = email.toLowerCase().trim()
@@ -167,6 +169,7 @@ router.post('/Register/Employee', async (req, res) => {
             .query(`SELECT TOP 1 Email FROM Employee
                 WHERE Email = @Email`)
         
+        // Ha nincs ilyen email a rendszerben, akkor létrehozzuk a fiókot, egyébként hibával visszajelzünk
         if(exists.recordset.length < 1){
             const hashedPass = await bcrypt.hash(dob, 10);
             const bufferedPass = Buffer.from(hashedPass);
@@ -226,8 +229,8 @@ router.post('/Login', async (req, res) => {
             const matches = await bcrypt.compare(password, storedPass);
             /*
             //Teszteléshez részletes debug logok a jelszó ellenőrzéshez
-            console.log("--- DEBUG LOGIN ---");
-            console.log("Amit beírtál (password):", password);
+            console.log("--- DEBUG LOG ---");
+            console.log("A beírt (password):", password);
             console.log("Típusa:", typeof password);
             console.log("DB Buffer (raw):", user.Password);
             console.log("DB Hex stringként:", user.Password.toString('hex'));
@@ -255,12 +258,12 @@ router.post('/Login', async (req, res) => {
 
 //Jelszó változtatás fiókokra
 router.patch('/UpdatePassword', authenticationToken, async (req, res) => {
-    let pool; // <-- FIXED: Added this so the finally block doesn't crash!
+    let pool;
     try {
-        // 1. Grab BOTH passwords from the frontend request (Matched to frontend state)
+        // Mindkét jelszót megköveteljük a kérésben
         const { oldPassword, newPassword } = req.body;
         
-        // 2. Extract the ID securely from your JWT middleware
+        // Kivesszük a userId-t a tokenből, hogy tudjuk, melyik fiók jelszavát akarjuk megváltoztatni. Ez lehet Id vagy UserId, attól függően, hogy a token létrehozásakor milyen kulccsal tettük bele. A biztonság kedvéért mindkettőt megpróbáljuk.
         const userId = req.user.Id || req.user.UserId; 
 
         if (!oldPassword || !newPassword) {
@@ -269,7 +272,7 @@ router.patch('/UpdatePassword', authenticationToken, async (req, res) => {
 
         pool = await mssql.connect(config);
 
-        // 3. Get the user's current hashed password from the database
+        // Lekerjük a jelenlegi jelszót a DB-ből, hogy össze tudjuk hasonlítani a beírt 'oldPassword'-dal. Itt feltételezzük, hogy a tokenben szereplő userId alapján azonosítjuk a felhasználót.
         const userRes = await pool.request()
             .input('Id', mssql.Int, userId)
             .query(`SELECT Password FROM Employee WHERE Id = @Id`);
@@ -280,7 +283,7 @@ router.patch('/UpdatePassword', authenticationToken, async (req, res) => {
 
         const user = userRes.recordset[0];
 
-        // 4. Compare the typed 'oldPassword' with the one in the database
+        // Összehasonlítjuk a beírt 'oldPassword'-t a DB-ben tárolt jelszóval. Mivel a jelszó hash-elve van, használjuk a bcrypt.compare-t, ami kezeli a hash-elést és az összehasonlítást is. Előtte konvertáljuk a Buffer-ben tárolt jelszót stringgé, hogy a bcrypt tudja értelmezni.
         const storedPass = user.Password.toString('utf-8');
         const isMatch = await bcrypt.compare(oldPassword, storedPass);
 
@@ -288,11 +291,11 @@ router.patch('/UpdatePassword', authenticationToken, async (req, res) => {
             return res.status(401).json({ success: false, error: "A jelenlegi jelszó helytelen." });
         }
 
-        // 5. If it matches, hash the NEW password and convert it to a Buffer
+        // Ha minden rendben van, akkor hash-eljük az új jelszót és konvertáljuk Buffer formátumba a DB-hez való kompatibilitás miatt.
         const hashedPass = await bcrypt.hash(newPassword, 10);
         const bufferedPass = Buffer.from(hashedPass);
 
-        // 6. Save the new password to the database
+        // Elmentjük a jelszó frissítését a DB-ben.
         await pool.request()
             .input('Id', mssql.Int, userId)
             .input('NewPassword', mssql.VarBinary, bufferedPass)
@@ -314,6 +317,7 @@ router.patch('/UpdatePassword', authenticationToken, async (req, res) => {
 
 //
 router.delete('/', authenticationToken, async (req, res) => {
+    let pool;
     try {
         const { email } = req.body
         const { authLv, email: managerEmail } = req.user
