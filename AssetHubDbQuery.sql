@@ -9,17 +9,17 @@ GO
 
 -- Autentikáció szintjei felhasználóknál
 CREATE TABLE AuthLevel (
-    Id INT PRIMARY KEY,
+    Id INT IDENTITY(1,1) PRIMARY KEY,
     Position NVARCHAR(30) NOT NULL,
     Description NVARCHAR(100) NOT NULL
 );
+
 -- Termék kategóriák
 CREATE TABLE ProductCategory (
     Id INT IDENTITY(1,1) PRIMARY KEY,
     Name NVARCHAR(30) NOT NULL
 );
 
--- 2. Tables with single-level dependencies
 -- A fő tábla 
 CREATE TABLE Store (
     Id INT IDENTITY(1,1) PRIMARY KEY,
@@ -27,6 +27,7 @@ CREATE TABLE Store (
     Name NVARCHAR(100) NOT NULL,
     Address NVARCHAR(100) NOT NULL,
 );
+
 -- termékek
 CREATE TABLE Product (
     Id INT IDENTITY(1,1) PRIMARY KEY,
@@ -34,10 +35,9 @@ CREATE TABLE Product (
     Name NVARCHAR(200) NOT NULL,
     Brand NVARCHAR(50) NOT NULL,
     Unit NVARCHAR(10) NOT NULL,
-    FOREIGN KEY (CategoryId) REFERENCES ProductCategory(Id)
+    CONSTRAINT FK_ProductCategory_Product FOREIGN KEY (CategoryId) REFERENCES ProductCategory(Id)
 );
 
--- 3. Tables depending on Store and Product
 -- alkalmazottak listája és a bejelentkezési adataik
 CREATE TABLE Employee (
     Id INT IDENTITY(1,1) PRIMARY KEY,
@@ -50,12 +50,13 @@ CREATE TABLE Employee (
     Phone NVARCHAR(15) NOT NULL,
     DoB DATE NOT NULL,
     HiredAt DATETIME DEFAULT GETDATE(),
-    Salary INT,
-    Currency NVARCHAR(3),
+    Salary INT NULL,
+    Currency NVARCHAR(3) DEFAULT 'HUF',
     IsActive BIT DEFAULT 1,
     CONSTRAINT FK_Store_Employee FOREIGN KEY (StoreId) REFERENCES Store(Id),
-    FOREIGN KEY (AuthLv) REFERENCES AuthLevel(Id)
+    CONSTRAINT FK_AuthLevel_Employee FOREIGN KEY (AuthLv) REFERENCES AuthLevel(Id)
 );
+
 -- raktárban lévő készlet és eladásaik 
 CREATE TABLE StoreInventory (
     Id INT IDENTITY(1,1) PRIMARY KEY,
@@ -67,11 +68,10 @@ CREATE TABLE StoreInventory (
     Stock DECIMAL(18, 2) NOT NULL,
     Sold DECIMAL(18, 2) DEFAULT 0.00,
     IsDeleted BIT DEFAULT 0,
-    FOREIGN KEY (StoreId) REFERENCES Store(Id),
-    FOREIGN KEY (ProductId) REFERENCES Product(Id)
+    CONSTRAINT FK_Store_StoreInventory FOREIGN KEY (StoreId) REFERENCES Store(Id),
+    CONSTRAINT FK_Product_StoreInventory FOREIGN KEY (ProductId) REFERENCES Product(Id)
 );
 
--- 4. Final transactional and content tables
 -- eladások
 CREATE TABLE Sales (
     Id INT IDENTITY(1,1) PRIMARY KEY,
@@ -82,6 +82,6 @@ CREATE TABLE Sales (
     TimeSold DATETIME DEFAULT GETDATE(),
     Quantity DECIMAL(18, 2) NOT NULL,
     IsDeleted BIT NOT NULL DEFAULT 0,
-    FOREIGN KEY (InventoryId) REFERENCES StoreInventory(Id),
-    FOREIGN KEY (EmployeeId) REFERENCES Employee(Id)
+    CONSTRAINT FK_StoreInventory_Sales FOREIGN KEY (InventoryId) REFERENCES StoreInventory(Id),
+    CONSTRAINT FK_Employee_Sales FOREIGN KEY (EmployeeId) REFERENCES Employee(Id)
 );
