@@ -7,6 +7,11 @@ import { useAuth } from '../../context/AuthContext';
 export default function EmployeesPage() {
   const { stores, selectedStoreId, setSelectedStoreId, isOwner } = useStores();
   const { user } = useAuth();
+  
+  // Jogosultságok kiszámítása (Tulajdonos = 1, Üzletvezető = 2)
+  const isManager = user?.AuthLvl === 2 || user?.AuthLv === 2;
+  const canEdit = isOwner || isManager;
+
   const [employees, setEmployees] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -21,7 +26,8 @@ export default function EmployeesPage() {
     authLv: 3,
     phone: '',
     doB: '',
-    salary: ''
+    salary: '',
+    currency: '' 
   });
 
   const [isEditMode, setIsEditMode] = useState(false);
@@ -42,7 +48,7 @@ export default function EmployeesPage() {
     setIsEditMode(false);
     setEditingId(null);
     setNewEmployee({
-      name: '', email: '', password: generateTempPassword(), authLv: 3, phone: '', doB: '', salary: ''
+      name: '', email: '', password: generateTempPassword(), authLv: 3, phone: '', doB: '', salary: '', currency: 'HUF'
     });
     setIsModalOpen(true);
   };
@@ -62,7 +68,8 @@ export default function EmployeesPage() {
       authLv: emp.AuthLv || 3,
       phone: emp.Phone || '',
       doB: formattedDate,
-      salary: emp.Salary || ''
+      salary: emp.Salary || '',
+      currency: emp.Currency || 'HUF'
     });
     setIsModalOpen(true);
   };
@@ -227,12 +234,16 @@ export default function EmployeesPage() {
               className="w-full bg-transparent py-2.5 text-white placeholder:text-slate-500 focus:outline-none"
             />
           </div>
-          <button
-            onClick={openModal}
-            className="flex items-center justify-center bg-blue-600 hover:bg-blue-500 text-white rounded-xl px-4 py-2.5 font-medium transition-colors whitespace-nowrap"
-          >
-            <Plus className="w-6 h-6" />
-          </button>
+          
+          {/* Csak Owner és Manager adhat hozzá új alkalmazottat */}
+          {canEdit && (
+            <button
+              onClick={openModal}
+              className="flex items-center justify-center bg-blue-600 hover:bg-blue-500 text-white rounded-xl px-4 py-2.5 font-medium transition-colors whitespace-nowrap"
+            >
+              <Plus className="w-6 h-6" />
+            </button>
+          )}
         </div>
       </div>
 
@@ -259,16 +270,18 @@ export default function EmployeesPage() {
 
                 {/* Gombok */}
                 <div className="flex items-start gap-4">
-                  <button
-                    onClick={() => openEditModal(emp)}
-                    className="text-slate-500 hover:text-blue-400 transition-colors"
-                    title="Alkalmazott Szerkesztése"
-                  >
-                    <Pencil className="w-5 h-5" />
-                  </button>
-                  {/* Delete Gomb csak akkor ha nem az aktuális felhasználó */}
-
-                  {String(emp.Id) !== String(user?.UserId) && (
+                  {/* Szerkesztés Gomb csak Owner és Manager számára */}
+                  {canEdit && (
+                    <button
+                      onClick={() => openEditModal(emp)}
+                      className="text-slate-500 hover:text-blue-400 transition-colors"
+                      title="Alkalmazott Szerkesztése"
+                    >
+                      <Pencil className="w-5 h-5" />
+                    </button>
+                  )}
+                  {/* Delete Gomb csak akkor ha nem az aktuális felhasználó, és ha a belépett felhasználó Owner vagy Manager */}
+                  {String(emp.Id) !== String(user?.UserId) && canEdit && (
                     <button
                       onClick={() => handleDeleteEmployee(emp.Id)}
                       className="text-slate-500 hover:text-red-400 transition-colors"
@@ -298,7 +311,7 @@ export default function EmployeesPage() {
       )}
 
       {/* MODAL */}
-      {isModalOpen && (
+      {isModalOpen && canEdit && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto">
           <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-md p-6 shadow-2xl relative my-8">
             <button onClick={() => setIsModalOpen(false)} className="absolute top-4 right-4 text-slate-400 hover:text-white">
@@ -326,27 +339,54 @@ export default function EmployeesPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-slate-300 mb-1">E-mail cím</label>
-                  <input type="email" required value={newEmployee.email} onChange={(e) => setNewEmployee({ ...newEmployee, email: e.target.value })} className="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-blue-500" />
+                  <input disabled={!isOwner} type="email" required value={newEmployee.email} onChange={(e) => setNewEmployee({ ...newEmployee, email: e.target.value })} className="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-blue-500" />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-slate-300 mb-1">Telefonszám</label>
-                  <input type="text" required value={newEmployee.phone} onChange={(e) => setNewEmployee({ ...newEmployee, phone: e.target.value })} className="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-blue-500" placeholder="+36..." />
+                  <input disabled={!isOwner} type="text" required value={newEmployee.phone} onChange={(e) => setNewEmployee({ ...newEmployee, phone: e.target.value })} className="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-blue-500" placeholder="+36..." />
                 </div>
               </div>
 
-              {/* 3. Sor: Szerepkör és Fizetés */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-1">Szerepkör</label>
-                  <select value={newEmployee.authLv} onChange={(e) => setNewEmployee({ ...newEmployee, authLv: parseInt(e.target.value) })} className="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-blue-500">
-                    <option value={3}>Eladó</option>
-                    <option value={2}>Üzletvezető</option>
-                    <option value={1}>Tulajdonos</option>
-                  </select>
-                </div>
-                <div>
+              {/* 3. Sor: Szerepkör */}
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-1">
+                  Szerepkör {!isOwner && <span className="text-xs text-orange-400 ml-2">(Csak tulajdonos módosíthatja)</span>}
+                </label>
+                <select 
+                  value={newEmployee.authLv} 
+                  onChange={(e) => setNewEmployee({ ...newEmployee, authLv: parseInt(e.target.value) })} 
+                  disabled={!isOwner} /* CSAK A TULAJDONOS SZERKESZTHETI */
+                  className="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-blue-500 disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-slate-900"
+                >
+                  <option value={3}>Eladó</option>
+                  <option value={2}>Üzletvezető</option>
+                  <option value={1}>Tulajdonos</option>
+                </select>
+              </div>
+
+              {/* 4. Sor: Fizetés és Pénznem */}
+              <div className="grid grid-cols-3 gap-4">
+                <div className="col-span-2">
                   <label className="block text-sm font-medium text-slate-300 mb-1">Fizetés (Opcionális)</label>
-                  <input type="number" value={newEmployee.salary} onChange={(e) => setNewEmployee({ ...newEmployee, salary: e.target.value })} className="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-blue-500" placeholder="pl. 400000" />
+                  <input 
+                    type="number" 
+                    value={newEmployee.salary} 
+                    onChange={(e) => setNewEmployee({ ...newEmployee, salary: e.target.value })} 
+                    className="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-blue-500" 
+                    placeholder="pl. 400000" 
+                  />
+                </div>
+                <div className="col-span-1">
+                  <label className="block text-sm font-medium text-slate-300 mb-1">Pénznem</label>
+                  <select 
+                    value={newEmployee.currency} 
+                    onChange={(e) => setNewEmployee({ ...newEmployee, currency: e.target.value })} 
+                    className="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-blue-500"
+                  >
+                    <option value="HUF">HUF</option>
+                    <option value="EUR">EUR</option>
+                    <option value="USD">USD</option>
+                  </select>
                 </div>
               </div>
 

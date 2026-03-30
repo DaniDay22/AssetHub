@@ -21,8 +21,9 @@ const authenticationToken = (req, res, next) => {
     });
 };
 
-// GET: Lekéri egy adott bolt eladási történetét. A dolgozó csak a saját franchise-án belül, és csak a saját boltjához tartozó eladásokat láthatja (kivéve ha magasabb jogosultságú, akkor több bolthoz is láthat).
+// GET: Lekéri egy adott bolt eladási történetét...
 router.get('/History', authenticationToken, async (req, res) => {
+    // ... (Your existing History logic remains completely unchanged)
     try {
         const { AuthLv, FranchiseId, StoreId } = req.user;
 
@@ -30,15 +31,10 @@ router.get('/History', authenticationToken, async (req, res) => {
             return res.status(403).json({ success: false, error: "Ehhez a művelethez nincs jogosultságod!!" });
         }
 
-        // Ha a frontend nem adott meg storeId-t, akkor használjuk a tokenben lévő StoreId-t. Ez biztosítja, hogy ha egy dolgozó nem ad meg storeId-t, akkor automatikusan a saját boltja eladásait fogja látni.
         const targetStoreId = req.query.storeId ? parseInt(req.query.storeId) : StoreId;
-
-        // Ha a frontend nem adott meg dátumokat, akkor lekérjük az összes eladást. Ha megadott, akkor csak a megadott időszakra eső eladásokat.
         const { startDate, endDate } = req.query;
-
         const pool = await mssql.connect(config);
 
-        // SECURITY: Megnézzük, hogy a megadott storeId valóban a saját franchise-unkhoz tartozik-e. Ez megakadályozza, hogy egy dolgozó más franchise-hoz tartozó bolt eladásait lássa.
         const storeCheck = await pool.request()
             .input('TargetStoreId', mssql.Int, targetStoreId)
             .input('MyFranchiseId', mssql.Int, FranchiseId)
@@ -70,7 +66,6 @@ router.get('/History', authenticationToken, async (req, res) => {
 
         const request = pool.request().input('TargetStoreId', mssql.Int, targetStoreId);
 
-        // Ha a frontend megadta a startDate és endDate paramétereket, akkor szűrjük az eladásokat a megadott időszakra. 
         if (startDate && endDate) {
             queryStr += ` AND CAST(Sales.TimeSold AS DATE) BETWEEN @StartDate AND @EndDate`;
             request.input('StartDate', mssql.Date, startDate);
@@ -87,15 +82,14 @@ router.get('/History', authenticationToken, async (req, res) => {
     }
 });
 
-// GET: Lekéri egy adott bolt aktuális készletét. A dolgozó csak a saját franchise-án belül, és csak a saját boltjához tartozó készletet láthatja (kivéve ha magasabb jogosultságú, akkor több bolthoz is láthat).
+// GET: Lekéri egy adott bolt aktuális készletét...
 router.get('/Inventory', authenticationToken, async (req, res) => {
+    // ... (Your existing Inventory logic remains completely unchanged)
     try {
         const { FranchiseId, StoreId } = req.user;
         const targetStoreId = req.query.storeId ? parseInt(req.query.storeId) : StoreId;
-
         const pool = await mssql.connect(config);
 
-        // SECURITY: Megnézzük, hogy a megadott storeId valóban a saját franchise-unkhoz tartozik-e. Ez megakadályozza, hogy egy dolgozó más franchise-hoz tartozó bolt készletét lássa.
         const storeCheck = await pool.request()
             .input('TargetStoreId', mssql.Int, targetStoreId)
             .input('MyFranchiseId', mssql.Int, FranchiseId)
@@ -128,66 +122,91 @@ router.get('/Inventory', authenticationToken, async (req, res) => {
     }
 });
 
-// POST: Rögzít egy új eladást. A dolgozó csak a saját franchise-án belül, és csak a saját boltjához tartozó eladásokat rögzítheti (kivéve ha magasabb jogosultságú).
+// POST: Rögzít TÖBB eladást egyszerre (Kosár rendszer)
 router.post('/Add', authenticationToken, async (req, res) => {
     let pool;
+    let transaction;
     try {
-        const { inventoryId, quantity, paymentMethod } = req.body;
+        // A frontend most egy "items" tömböt küld, ami a kosár tartalmát jelenti.
+        const { items, paymentMethod } = req.body;
         const employeeId = req.user.UserId;
         const myFranchiseId = req.user.FranchiseId;
 
-        pool = await mssql.connect(config);
+        if (!items || items.length === 0) {
+            return res.status(400).json({ success: false, error: "A kosár üres!" });
+        }
 
-        // Megnézzük, hogy a megadott inventoryId valóban egy olyan termék, ami a saját franchise-unkhoz tartozó boltban van, és lekérjük az árát és a készletét is. Ez megakadályozza, hogy egy dolgozó más franchise-hoz tartozó bolt termékét adja el.
-        const itemRes = await pool.request()
-            .input('InventoryId', mssql.Int, inventoryId)
-            .input('MyFranchiseId', mssql.Int, myFranchiseId)
-            .query(`
-                SELECT si.Price, si.Stock 
+        pool = await mssql.connect(config);
+        
+        // 1. Megnyitjuk a tranzakciót. Ha a ciklusban BÁRMI elromlik (pl. elfogy a kóla), 
+        // a Transaction visszavon mindent (Rollback), így nem lesz félig sikeres eladás a rendszerben.
+        transaction = new mssql.Transaction(pool);
+        await transaction.begin();
+
+        for (const item of items) {
+            const { inventoryId, quantity } = item;
+
+            // 2. Ellenőrizzük a készletet és lekérjük az árat az aktuális termékre
+            const itemReq = new mssql.Request(transaction);
+            itemReq.input('InventoryId', mssql.Int, inventoryId);
+            itemReq.input('MyFranchiseId', mssql.Int, myFranchiseId);
+            
+            const itemRes = await itemReq.query(`
+                SELECT si.Price, si.Stock, p.Name
                 FROM StoreInventory si
                 INNER JOIN Store s ON si.StoreId = s.Id
+                INNER JOIN Product p ON si.ProductId = p.Id
                 WHERE si.Id = @InventoryId AND s.FranchiseId = @MyFranchiseId
             `);
 
-        if (itemRes.recordset.length === 0) {
-            return res.status(404).json({ success: false, error: "Termék nem található, vagy nincs jogosultságod!" });
-        }
+            if (itemRes.recordset.length === 0) {
+                throw new Error(`Érvénytelen termék a kosárban! (ID: ${inventoryId})`);
+            }
 
-        const { Price, Stock } = itemRes.recordset[0];
+            const { Price, Stock, Name } = itemRes.recordset[0];
 
-        if (Stock < quantity) {
-            return res.status(400).json({ success: false, error: "Nincs elég készlet!" });
-        }
+            if (Stock < quantity) {
+                // Ha ez a hiba lefut, a tranzakció megszakad!
+                throw new Error(`Nincs elég készlet ebből: ${Name}! (Raktáron: ${Stock} db)`);
+            }
 
-        // A transakcióban egyszerre rögzítjük az eladást és vonjuk le a készletet, hogy elkerüljük a versenyhelyzeteket.
-        await pool.request()
-            .input('InventoryId', mssql.Int, inventoryId)
-            .input('EmployeeId', mssql.Int, employeeId)
-            .input('Quantity', mssql.Int, quantity)
-            .input('TotalPrice', mssql.Int, Price * quantity)
-            .input('PaymentMethod', mssql.NVarChar, paymentMethod)
-            .query(`
-                BEGIN TRANSACTION;
+            const totalPrice = Price * quantity;
+
+            // 3. Rögzítjük a Sales táblában és levonjuk a készletből
+            const insertReq = new mssql.Request(transaction);
+            insertReq.input('InventoryId', mssql.Int, inventoryId);
+            insertReq.input('EmployeeId', mssql.Int, employeeId);
+            insertReq.input('Quantity', mssql.Int, quantity);
+            insertReq.input('TotalPrice', mssql.Int, totalPrice);
+            insertReq.input('PaymentMethod', mssql.NVarChar, paymentMethod);
+
+            await insertReq.query(`
                 INSERT INTO Sales (InventoryId, EmployeeId, TimeSold, Quantity, PriceAtSale, PaymentMethod, IsDeleted)
                 VALUES (@InventoryId, @EmployeeId, GETDATE(), @Quantity, @TotalPrice, @PaymentMethod, 0);
 
                 UPDATE StoreInventory 
                 SET 
                     Stock = Stock - @Quantity, 
-                    Sold = Sold + @Quantity  
-                WHERE Id = @InventoryId
-                COMMIT TRANSACTION;
+                    Sold = ISNULL(Sold, 0) + @Quantity  
+                WHERE Id = @InventoryId;
             `);
+        }
 
+        // 4. Ha a ciklus minden terméken sikeresen végigment, véglegesítjük az egészet.
+        await transaction.commit();
         res.status(200).json({ success: true });
+
     } catch (err) {
-        if (pool) await pool.request().query('IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION').catch(() => { });
-        res.status(500).json({ success: false, error: err.message });
+        // Ha bármi hiba volt, visszavonjuk a tranzakciót.
+        if (transaction) await transaction.rollback().catch(() => {});
+        console.error("Bulk Add Sale Error:", err);
+        res.status(500).json({ success: false, error: err.message || "Szerver hiba történt!" });
     }
 });
 
-// DELETE: Töröl egy eladást (valójában csak érvényteleníti). A dolgozó csak a saját franchise-án belül, és csak a saját boltjához tartozó eladásokat törölheti (kivéve ha magasabb jogosultságú, akkor több bolthoz is törölhet).
+// DELETE: Töröl egy eladást...
 router.delete('/:id', authenticationToken, async (req, res) => {
+    // ... (Your existing Delete logic remains completely unchanged. It works perfectly with the new cart system because items are still saved as individual rows!)
     let pool;
     try {
         const saleId = req.params.id;
@@ -195,7 +214,6 @@ router.delete('/:id', authenticationToken, async (req, res) => {
 
         pool = await mssql.connect(config);
 
-        // Megkeressük az eladást, és ellenőrizzük, hogy valóban a saját franchise-unkhoz tartozó boltban történt-e. Ez megakadályozza, hogy egy dolgozó más franchise-hoz tartozó bolt eladásait törölje.
         const saleCheck = await pool.request()
             .input('SaleId', mssql.Int, saleId)
             .input('MyFranchiseId', mssql.Int, myFranchiseId)
@@ -213,17 +231,13 @@ router.delete('/:id', authenticationToken, async (req, res) => {
 
         const { InventoryId, Quantity } = saleCheck.recordset[0];
 
-        // A transakcióban egyszerre érvénytelenítjük az eladást és visszaállítjuk a készletet, hogy elkerüljük a versenyhelyzeteket.
         await pool.request()
             .input('SaleId', mssql.Int, saleId)
             .input('InventoryId', mssql.Int, InventoryId)
             .input('Quantity', mssql.Int, Quantity)
             .query(`
                 BEGIN TRANSACTION;
-                -- Put the items back on the shelf
                 UPDATE StoreInventory SET Stock = Stock + @Quantity WHERE Id = @InventoryId;
-                
-                -- SOFT DELETE: Mark as voided instead of deleting the record entirely!
                 UPDATE Sales SET IsDeleted = 1 WHERE Id = @SaleId; 
                 COMMIT TRANSACTION;
             `);
@@ -231,7 +245,6 @@ router.delete('/:id', authenticationToken, async (req, res) => {
         res.status(200).json({ success: true, message: "Eladás törölve, készlet visszaállítva!" });
     } catch (err) {
         if (pool) await pool.request().query('IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION').catch(() => { });
-        console.error("Delete Sale Error:", err);
         res.status(500).json({ success: false, error: "Szerver hiba történt az eladás törlésekor." });
     }
 });

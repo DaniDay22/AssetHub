@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import {
   ArrowRight, Package, ShieldCheck, BarChart3,
-  CheckCircle2, XCircle, Star, ChevronDown, PlayCircle, Zap
+  CheckCircle2, XCircle, ChevronDown, Zap
 } from 'lucide-react';
 
 export default function LandingPage() {
@@ -29,7 +29,7 @@ export default function LandingPage() {
             Felejtsd el a káoszos Excel táblákat és az elveszett papírokat. Az AssetHub egyetlen felületen egyesíti az értékesítést, a raktárt és a csapatot.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-            <Link href="/login" className="w-full sm:w-auto bg-blue-600 hover:bg-blue-500 text-white px-8 py-4 rounded-xl text-lg font-bold transition-all shadow-lg shadow-blue-500/25 flex items-center justify-center gap-2">
+            <Link href="/auth/login" className="w-full sm:w-auto bg-blue-600 hover:bg-blue-500 text-white px-8 py-4 rounded-xl text-lg font-bold transition-all shadow-lg shadow-blue-500/25 flex items-center justify-center gap-2">
               Kezdjünk hozzá <ArrowRight className="w-5 h-5" />
             </Link>
           </div>
