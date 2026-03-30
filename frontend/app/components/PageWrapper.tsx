@@ -8,7 +8,7 @@ export default function PageWrapper({ children }: { children: ReactNode }) {
   const isDashboard = pathname?.startsWith('/dashboard');
 
   return (
-    <main className={`flex-1 flex flex-col`}>
+    <main className={`flex-1 flex flex-col ${isDashboard ? 'pt-24' : ''} selection:bg-blue-500/30`}>
       {children}
     </main>
   );

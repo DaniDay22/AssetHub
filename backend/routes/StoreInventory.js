@@ -7,7 +7,7 @@ const jwt = require('jsonwebtoken')
 const multer = require('multer')
 const iconv = require('iconv-lite')
 
-const upload = multer({storage: multer.memoryStorage() })
+const upload = multer({ storage: multer.memoryStorage() })
 const { parse } = require('csv-parse/sync')
 
 const jwt_secretKey = process.env.JWT_SECRET
@@ -21,12 +21,12 @@ const authenticationToken = (req, res, next) => {
     const authHeader = req.headers['authorization']
     const token = authHeader && authHeader.split(' ')[1]
 
-    if(!token)
-        return res.status(401).json({success: false, error: "Bejelentkezés szükséges!"})
-    
+    if (!token)
+        return res.status(401).json({ success: false, error: "Bejelentkezés szükséges!" })
+
     jwt.verify(token, jwt_secretKey, (err, decoded) => {
-        if(err)
-            return res.status(403).json({success: false, error: "Érvénytelen vagy lejárt token!"})
+        if (err)
+            return res.status(403).json({ success: false, error: "Érvénytelen vagy lejárt token!" })
 
         //Ha minden oké, akkor adjuk át a dekódolt adatokat és mehet tovább
         req.user = decoded
@@ -39,16 +39,16 @@ router.get('/export-template/:storeId', authenticationToken, async (req, res) =>
     let pool;
     try {
         pool = await mssql.connect(config);
-        
+
         const storeId = req.params.storeId;
         const thresholdQuery = req.query.threshold;
-        
+
         let result;
 
         // Megnézzük, hogy a threshold query paraméterben van-e érték, és ha igen, akkor az egy szám-e. Ha van ilyen paraméter, és érvényes szám, akkor csak a low-stock termékeket kérjük le (ez lesz a bevásárlólista). Ha nincs ilyen paraméter, vagy nem érvényes szám, akkor az összes terméket kérjük le (ez lesz a teljes készlet feltöltő sablon).
         if (thresholdQuery !== undefined && thresholdQuery !== null && !isNaN(parseInt(thresholdQuery))) {
             const lowStockThreshold = parseInt(thresholdQuery);
-            
+
             result = await pool.request()
                 .input('StoreId', mssql.Int, storeId)
                 .input('Threshold', mssql.Int, lowStockThreshold)
@@ -68,7 +68,7 @@ router.get('/export-template/:storeId', authenticationToken, async (req, res) =>
                       AND (SI.IsDeleted = 0 OR SI.IsDeleted IS NULL) 
                       AND SI.Stock <= @Threshold
                 `);
-        } 
+        }
         // Ha nincs threshold paraméter, akkor az összes terméket lekérjük, hogy a teljes készlet feltöltő sablont generáljuk.
         else {
             result = await pool.request()
@@ -104,7 +104,7 @@ router.get('/export-template/:storeId', authenticationToken, async (req, res) =>
 
         // 5. Header-ek beállítása a letöltéshez
         res.setHeader('Content-Type', 'text/csv; charset=windows-1250');
-        
+
         // Dinamikus fájlnév attól függően, hogy melyiket töltjük le
         const fileNamePrefix = thresholdQuery ? 'bevasarlista' : 'keszlet_sablon';
         res.setHeader('Content-Disposition', `attachment; filename=${fileNamePrefix}_bolt_${storeId}.csv`);
@@ -113,7 +113,7 @@ router.get('/export-template/:storeId', authenticationToken, async (req, res) =>
 
     } catch (error) {
         console.error("Template Export ERROR:", error);
-        res.status(500).json({success: false, message: "Hiba a sablon generálása közben!"});
+        res.status(500).json({ success: false, message: "Hiba a sablon generálása közben!" });
     } finally {
         if (pool) pool.close();
     }
@@ -175,12 +175,12 @@ router.get('/All', authenticationToken, async (req, res) => {
 
 router.post('/', authenticationToken, async (req, res) => {
     let pool;
-    try{
+    try {
         // A frontend küldje el a StoreId-t, hogy melyik bolt raktárába szeretné feltölteni a terméket. Ha nem küldi el, akkor használjuk a tokenben lévő StoreId-t (ez az alapértelmezett boltja a dolgozónak).
-        const {PName, PCName, Brand, Unit, Price, Currency, Stock, Description, StoreId} = req.body
-        const {AuthLv, UserId} = req.user //Tokenből infó
+        const { PName, PCName, Brand, Unit, Price, Currency, Stock, Description, StoreId } = req.body
+        const { AuthLv, UserId } = req.user //Tokenből infó
 
-        if(AuthLv == 4)
+        if (AuthLv == 4)
             return res.status(403).json({ success: false, error: "Ehhez a művelethez nincs jogosultságod!" });
 
         // Megnézzük, hogy a frontend küldött-e storeId-t. Ha igen, akkor azt használjuk, ha nem, akkor a tokenben lévő StoreId-t (ez az alapértelmezett boltja a dolgozónak).
@@ -197,7 +197,7 @@ router.post('/', authenticationToken, async (req, res) => {
             .input('Currency', mssql.NVarChar, Currency)
             .input('Stock', mssql.Decimal, Stock)
             .input('Description', mssql.NVarChar, Description)
-            .input('TargetStoreId', mssql.Int, targetStoreId) 
+            .input('TargetStoreId', mssql.Int, targetStoreId)
             .query(`
                 DECLARE @CategoryId int;
                 DECLARE @ProductId int;
@@ -241,13 +241,13 @@ router.post('/', authenticationToken, async (req, res) => {
                     END CATCH
                 `)
 
-        res.status(201).json({success: true, message: "Termék sikeresen feltöltve!"})
+        res.status(201).json({ success: true, message: "Termék sikeresen feltöltve!" })
     }
-    catch(err){
+    catch (err) {
         console.error("Fetch ERROR:", err)
-        res.status(500).json({success: false, message: "Szerver hiba történt!"})
+        res.status(500).json({ success: false, message: "Szerver hiba történt!" })
     }
-    finally{
+    finally {
         if (pool) pool.close()
     }
 })
@@ -255,10 +255,10 @@ router.post('/', authenticationToken, async (req, res) => {
 router.put('/', authenticationToken, async (req, res) => {
     let pool;
     try {
-        const {StoreInvId, ProductId, PName, PCName, Brand, Unit, Price, Currency, Stock, Description} = req.body;
+        const { StoreInvId, ProductId, PName, PCName, Brand, Unit, Price, Currency, Stock, Description } = req.body;
         const AuthLv = req.user.AuthLv;
 
-        if(AuthLv == 4) return res.status(403).json({ success: false, error: "Nincs jogosultságod!" });
+        if (AuthLv == 4) return res.status(403).json({ success: false, error: "Nincs jogosultságod!" });
 
         pool = await mssql.connect(config);
         await pool.request()
@@ -276,47 +276,56 @@ router.put('/', authenticationToken, async (req, res) => {
                 DECLARE @CategoryId int;
                 DECLARE @ProductId int;
 
-                -- Bulletproof Category Lookup
+                -- Megnézzük, hogy létezik-e ez a kategória a ProductCategory-ban (Transaction folyt. köv.)
                 SET @CategoryId = (SELECT TOP 1 Id FROM ProductCategory WHERE LOWER(TRIM(Name)) = LOWER(TRIM(@PCName)));
 
                 BEGIN TRANSACTION
                 BEGIN TRY
+                    -- Ha még nincs ilyen kategória, akkor töltsük fel
                     IF @CategoryId IS NULL
                     BEGIN
                         INSERT INTO ProductCategory (Name) VALUES (TRIM(@PCName));
                         SET @CategoryId = SCOPE_IDENTITY();
                     END;
 
-                    -- Bulletproof Product Lookup
+                    -- Megnézzük, hogy létezik-e ez a sablon a Products-ban
+                    -- Ezuttal már a CategoryId újra beillesztése után, ha megtörtént
                     SET @ProductId = (SELECT TOP 1 Id FROM Product
                         WHERE LOWER(TRIM(Name)) = LOWER(TRIM(@PName)) 
                         AND LOWER(TRIM(Brand)) = LOWER(TRIM(@Brand))
                         AND LOWER(TRIM(Unit)) = LOWER(TRIM(@Unit)) 
                         AND CategoryId = @CategoryId);
                     
+                    -- Ha még nincs ilyen termék sablon, vagy nem ugyanaz mint a mostani, akkor...
                     IF @ProductId IS NULL OR @ProductId <> @currentProductId
                     BEGIN
+                        -- ...először megnézzük, hogy TÉNYLEG nincs ilyen sablon, ha nincs...
                         IF @ProductId IS NULL
                         BEGIN
                             INSERT INTO Product (CategoryId, Name, Brand, Unit) 
                             VALUES (@CategoryId, TRIM(@PName), TRIM(@Brand), TRIM(@Unit));
                             SET @ProductId = SCOPE_IDENTITY();
                         END;
-
+                        -- ...állítsuk át az új termék sablonra a StoreInventory-nál.
                         UPDATE StoreInventory SET ProductId = @ProductId WHERE Id = @StoreInventoryId;
 
-                        -- Cleanup unused templates
+                        -- Töröljük ki a régi termék sablont !!CSAK AKKOR HA MÁS BOLT NEM HASZNÁLJA!!
                         DELETE FROM Product 
                         WHERE Id = @currentProductId 
                         AND Id <> @ProductId
                         AND NOT EXISTS (SELECT 1 FROM StoreInventory WHERE ProductId = @currentProductId);
                     END;
 
+                    -- Frissítjük az adatokat
                     UPDATE StoreInventory
                     SET 
+                        -- Ha a @Price 0 vagy NULL, marad a jelenlegi Price
                         Price = COALESCE(NULLIF(@Price, 0), Price),
+                        -- Ha a @Currency üres ('') vagy NULL, marad a jelenlegi Currency
                         Currency = COALESCE(NULLIF(@Currency, ''), Currency),
+                        -- Ha a @Description üres vagy NULL, marad a jelenlegi Description
                         Description = COALESCE(NULLIF(@Description, ''), Description),
+                        -- Ha a @Stock NULL (itt a 0 lehet valid érték, szóval csak NULL-ra nézzük), marad a régi
                         Stock = COALESCE(@Stock, Stock)
                     WHERE Id = @StoreInventoryId;
 
@@ -328,10 +337,10 @@ router.put('/', authenticationToken, async (req, res) => {
                 END CATCH;
             `);
 
-        res.status(200).json({success: true, message: "Sikeres frissítés!"});
-    } catch(err) {
+        res.status(200).json({ success: true, message: "Sikeres frissítés!" });
+    } catch (err) {
         console.error("PUT ERROR:", err);
-        res.status(500).json({success: false, message: "Szerver hiba a módosításkor!"});
+        res.status(500).json({ success: false, message: "Szerver hiba a módosításkor!" });
     } finally {
         if (pool) pool.close();
     }
@@ -340,12 +349,12 @@ router.put('/', authenticationToken, async (req, res) => {
 router.delete('/', authenticationToken, async (req, res) => {
     let pool;
     try {
-        const {StoreInvId, ProductId} = req.body;
-        if(req.user.AuthLv == 4) return res.status(403).json({ success: false, error: "Nincs jogosultságod!" });
+        const { StoreInvId, ProductId } = req.body;
+        if (req.user.AuthLv == 4) return res.status(403).json({ success: false, error: "Nincs jogosultságod!" });
 
         pool = await mssql.connect(config);
         await pool.request()
-            .input('StoreInventoryId', mssql.Int, StoreInvId) 
+            .input('StoreInventoryId', mssql.Int, StoreInvId)
             .input('currentProductId', mssql.Int, ProductId)
             .query(`
                 BEGIN TRANSACTION
@@ -374,10 +383,10 @@ router.delete('/', authenticationToken, async (req, res) => {
                     THROW;
                 END CATCH;
             `);
-        res.status(200).json({success: true, message: "Sikeres törlés!"});
-    } catch(err) {
+        res.status(200).json({ success: true, message: "Sikeres törlés!" });
+    } catch (err) {
         console.error("DELETE ERROR:", err);
-        res.status(500).json({success: false, message: "Hiba a törlés közben!"});
+        res.status(500).json({ success: false, message: "Hiba a törlés közben!" });
     } finally {
         if (pool) pool.close();
     }
@@ -387,7 +396,7 @@ router.delete('/', authenticationToken, async (req, res) => {
 
 router.patch('/', authenticationToken, upload.single('RestockFile'), async (req, res) => {
     let pool;
-    try{
+    try {
         if (!req.file) return res.status(400).send('Nincs fájl feltöltve.');
 
         let fileContent;
@@ -408,10 +417,10 @@ router.patch('/', authenticationToken, upload.single('RestockFile'), async (req,
 
         // Parse-oljuk a CSV-t a dinamikusan detektált delimiterrel, és megadjuk a megfelelő opciókat, hogy a magyar ékezetek ne menjenek tönkre, és hogy a fejléc alapján kapjunk kulcsokat az objektumokhoz. Ez megkönnyíti a további feldolgozást, mert így már nem kell indexekkel bajlódni, hanem közvetlenül a kulcsokkal tudunk dolgozni.
         const records = parse(fileContent, {
-            columns: true, 
+            columns: true,
             skip_empty_lines: true,
             delimiter: detectedDelimiter,
-            trim: true, 
+            trim: true,
             bom: true // Levágja az esetleges BOM-ot, ha maradt volna a fájl elején, ami szintén problémákat okozhat a feldolgozás során.
         });
 
@@ -469,8 +478,8 @@ router.patch('/', authenticationToken, upload.single('RestockFile'), async (req,
                 DROP TABLE #TempImport;
             `);
 
-            const failedRows = result.recordset; // Az utolsó SELECT eredménye
-            const successCount = records.length - failedRows.length;
+        const failedRows = result.recordset; // Az utolsó SELECT eredménye
+        const successCount = records.length - failedRows.length;
 
         res.status(200).json({
             message: 'Feldolgozás kész.',
@@ -482,11 +491,11 @@ router.patch('/', authenticationToken, upload.single('RestockFile'), async (req,
             errors: failedRows // Ez megy vissza a frontendnek listaként
         });
     }
-    catch(err){
+    catch (err) {
         console.error("Fetch ERROR:", err)
-        res.status(500).json({success: false, message: "Szerver hiba történt!"})
+        res.status(500).json({ success: false, message: "Szerver hiba történt!" })
     }
-    finally{
+    finally {
         if (pool) pool.close()
     }
 })

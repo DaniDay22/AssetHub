@@ -403,7 +403,7 @@ const handleSaveProduct = async (e: React.FormEvent) => {
                           <TrendingUp className="w-3 h-3 mr-1" /> Eladva
                       </div>
                       <div className="text-xl font-bold">
-                          {p.Sold || 0} <span className="text-sm font-normal opacity-70">{p.Unit}</span>
+                          {p.Sold} <span className="text-sm font-normal opacity-70">{p.Unit}</span>
                       </div>
                     </div>
                   </div>

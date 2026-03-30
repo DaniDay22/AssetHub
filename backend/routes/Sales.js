@@ -10,12 +10,12 @@ const authenticationToken = (req, res, next) => {
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1];
 
-    if(!token)
-        return res.status(401).json({success: false, error: "Bejelentkezés szükséges!"});
-    
+    if (!token)
+        return res.status(401).json({ success: false, error: "Bejelentkezés szükséges!" });
+
     jwt.verify(token, jwt_secretKey, (err, decoded) => {
-        if(err)
-            return res.status(403).json({success: false, error: "Érvénytelen vagy lejárt token!"});
+        if (err)
+            return res.status(403).json({ success: false, error: "Érvénytelen vagy lejárt token!" });
         req.user = decoded;
         next();
     });
@@ -32,7 +32,7 @@ router.get('/History', authenticationToken, async (req, res) => {
 
         // Ha a frontend nem adott meg storeId-t, akkor használjuk a tokenben lévő StoreId-t. Ez biztosítja, hogy ha egy dolgozó nem ad meg storeId-t, akkor automatikusan a saját boltja eladásait fogja látni.
         const targetStoreId = req.query.storeId ? parseInt(req.query.storeId) : StoreId;
-        
+
         // Ha a frontend nem adott meg dátumokat, akkor lekérjük az összes eladást. Ha megadott, akkor csak a megadott időszakra eső eladásokat.
         const { startDate, endDate } = req.query;
 
@@ -81,7 +81,7 @@ router.get('/History', authenticationToken, async (req, res) => {
 
         const result = await request.query(queryStr);
         res.status(200).json({ success: true, data: result.recordset });
-    } catch(err) {
+    } catch (err) {
         console.error("History Fetch Error:", err);
         res.status(500).json({ success: false, error: "Szerver hiba történt!" });
     }
@@ -128,7 +128,7 @@ router.get('/Inventory', authenticationToken, async (req, res) => {
     }
 });
 
-// POST: Rögzít egy új eladást. A dolgozó csak a saját franchise-án belül, és csak a saját boltjához tartozó eladásokat rögzítheti (kivéve ha magasabb jogosultságú, akkor több bolthoz is rögzíthet).
+// POST: Rögzít egy új eladást. A dolgozó csak a saját franchise-án belül, és csak a saját boltjához tartozó eladásokat rögzítheti (kivéve ha magasabb jogosultságú).
 router.post('/Add', authenticationToken, async (req, res) => {
     let pool;
     try {
@@ -171,13 +171,17 @@ router.post('/Add', authenticationToken, async (req, res) => {
                 INSERT INTO Sales (InventoryId, EmployeeId, TimeSold, Quantity, PriceAtSale, PaymentMethod, IsDeleted)
                 VALUES (@InventoryId, @EmployeeId, GETDATE(), @Quantity, @TotalPrice, @PaymentMethod, 0);
 
-                UPDATE StoreInventory SET Stock = Stock - @Quantity WHERE Id = @InventoryId;
+                UPDATE StoreInventory 
+                SET 
+                    Stock = Stock - @Quantity, 
+                    Sold = Sold + @Quantity  
+                WHERE Id = @InventoryId
                 COMMIT TRANSACTION;
             `);
 
         res.status(200).json({ success: true });
     } catch (err) {
-        if (pool) await pool.request().query('IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION').catch(() => {});
+        if (pool) await pool.request().query('IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION').catch(() => { });
         res.status(500).json({ success: false, error: err.message });
     }
 });
@@ -188,7 +192,7 @@ router.delete('/:id', authenticationToken, async (req, res) => {
     try {
         const saleId = req.params.id;
         const myFranchiseId = req.user.FranchiseId;
-        
+
         pool = await mssql.connect(config);
 
         // Megkeressük az eladást, és ellenőrizzük, hogy valóban a saját franchise-unkhoz tartozó boltban történt-e. Ez megakadályozza, hogy egy dolgozó más franchise-hoz tartozó bolt eladásait törölje.
@@ -226,7 +230,7 @@ router.delete('/:id', authenticationToken, async (req, res) => {
 
         res.status(200).json({ success: true, message: "Eladás törölve, készlet visszaállítva!" });
     } catch (err) {
-        if (pool) await pool.request().query('IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION').catch(() => {});
+        if (pool) await pool.request().query('IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION').catch(() => { });
         console.error("Delete Sale Error:", err);
         res.status(500).json({ success: false, error: "Szerver hiba történt az eladás törlésekor." });
     }
