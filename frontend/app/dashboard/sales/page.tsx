@@ -1,7 +1,7 @@
 'use client';
 import React, { useState, useEffect } from 'react';
 import { useStores } from '../../context/StoreContext';
-import { Search, Plus, CreditCard, Banknote, Clock, User, X, Loader2, Trash2, Store, ChevronDown } from 'lucide-react';
+import { Search, Plus, CreditCard, Banknote, Clock, User, X, Loader2, Trash2, Store, ChevronDown, ShoppingCart } from 'lucide-react';
 
 export default function SalesFeedPage() {
   const { stores, selectedStoreId, setSelectedStoreId, isOwner } = useStores();
@@ -16,14 +16,18 @@ export default function SalesFeedPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [inventory, setInventory] = useState<any[]>([]);
   const [loadingInventory, setLoadingInventory] = useState(false);
-  const [newSale, setNewSale] = useState({
-    inventoryId: '',
-    quantity: 1,
-    paymentMethod: 'Készpénz' // Translated default
-  });
+  
+  // ==========================================
+  // ÚJ: KOSÁR ÁLLAPOT (A Cart System)
+  // ==========================================
+  const [cart, setCart] = useState<{ inventoryId: number, name: string, price: number, quantity: number, maxStock: number }[]>([]);
+  const [paymentMethod, setPaymentMethod] = useState('Készpénz');
+  
+  // Ezek csak a modal felső lenyíló sávját és mennyiségét kezelik, amíg be nem kerül a kosárba.
+  const [selectedItemToAdd, setSelectedItemToAdd] = useState('');
+  const [quantityToAdd, setQuantityToAdd] = useState(1);
 
-
-  // Lekérjük az eladásokat, amikor a selectedStoreId változik (tehát amikor a felhasználó új boltot választ).
+  // Eladások lekérése
   useEffect(() => {
     const fetchSales = async () => {
       if (!selectedStoreId) return;
@@ -49,12 +53,11 @@ export default function SalesFeedPage() {
       }
     };
 
-    // Minden alkalommal, amikor új boltot választunk, ürítsük ki a korábbi eladásokat és készletet, hogy ne zavarja az új adatok betöltését.
     setInventory([]);
     fetchSales();
   }, [selectedStoreId]);
 
-  // Lekérjük a készletet, amikor megnyitjuk az új eladás modal-t, és csak akkor, ha még nincs betöltve a készlet (így nem kell újra lekérni minden egyes modal megnyitáskor).
+  // Készlet lekérése modal nyitásakor
   useEffect(() => {
     if (isModalOpen && inventory.length === 0 && selectedStoreId) {
       const fetchInventory = async () => {
@@ -107,8 +110,57 @@ export default function SalesFeedPage() {
       seller.toLowerCase().includes(search);
   });
 
-  const handleCreateSale = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // ==========================================
+  // KOSÁR LOGIKA (Hozzáadás, Törlés, Összegzés)
+  // ==========================================
+  const handleAddToCart = () => {
+    if (!selectedItemToAdd || quantityToAdd < 1) return;
+    
+    // Megkeressük az eredeti terméket, hogy tudjuk a nevét, árát és max raktárkészletét.
+    const product = inventory.find(i => i.InventoryId.toString() === selectedItemToAdd);
+    if (!product) return;
+
+    setCart(prevCart => {
+      // Megnézzük, hogy benne van-e már a kosárban
+      const existingItem = prevCart.find(item => item.inventoryId === product.InventoryId);
+      
+      if (existingItem) {
+        // Ha benne van, csak növeljük a mennyiséget (de nem engedjük a max készlet fölé)
+        const newQuantity = Math.min(existingItem.quantity + quantityToAdd, product.Stock);
+        return prevCart.map(item => 
+          item.inventoryId === product.InventoryId ? { ...item, quantity: newQuantity } : item
+        );
+      } else {
+        // Ha nincs benne, felvesszük újként
+        const newQuantity = Math.min(quantityToAdd, product.Stock);
+        return [...prevCart, {
+          inventoryId: product.InventoryId,
+          name: `${product.Brand} ${product.Name}`,
+          price: product.Price,
+          quantity: newQuantity,
+          maxStock: product.Stock
+        }];
+      }
+    });
+
+    // Reseteljük a lenyílót a következő termékhez
+    setSelectedItemToAdd('');
+    setQuantityToAdd(1);
+  };
+
+  const handleRemoveFromCart = (inventoryId: number) => {
+    setCart(prevCart => prevCart.filter(item => item.inventoryId !== inventoryId));
+  };
+
+  // A kosár végösszege
+  const cartTotal = cart.reduce((total, item) => total + (item.price * item.quantity), 0);
+
+  // ==========================================
+  // VÉGLEGESÍTÉS (Checkout)
+  // ==========================================
+  const handleCheckout = async () => {
+    if (cart.length === 0) return alert("A kosár üres!");
+
     try {
       const token = localStorage.getItem('token');
       const res = await fetch('http://localhost:5000/api/sales/Add', {
@@ -117,12 +169,14 @@ export default function SalesFeedPage() {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify(newSale)
+        // Most az EGESZ kosarat átküldjük a backendnek egy tömbben!
+        body: JSON.stringify({ items: cart, paymentMethod }) 
       });
 
       const json = await res.json();
 
       if (json.success) {
+        setCart([]); // Kiürítjük a kosarat
         setIsModalOpen(false);
         window.location.reload();
       } else {
@@ -138,10 +192,7 @@ export default function SalesFeedPage() {
 
       {/* HEADER SECTION */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
-
         <div className="flex flex-col sm:flex-row sm:items-center gap-6">
-
-
           {isOwner && stores.length > 1 ? (
             <div className="relative group">
               <div className="flex items-center bg-slate-800/80 hover:bg-slate-700 border border-slate-700 rounded-xl px-4 py-2.5 transition-all cursor-pointer">
@@ -161,7 +212,6 @@ export default function SalesFeedPage() {
               </div>
             </div>
           ) : (
-            // Ha nem tulajdonos, vagy csak egy boltja van, akkor csak simán jelenítsük meg a bolt nevét egy nem interaktív elemként.
             <div className="flex items-center bg-slate-800/40 border border-slate-700/50 rounded-xl px-4 py-2.5">
               <Store className="w-5 h-5 text-blue-400 mr-3" />
               <span className="text-white font-medium">
@@ -254,80 +304,120 @@ export default function SalesFeedPage() {
         </div>
       )}
 
-      {/* MODAL */}
+      {/* SHOPPING CART MODAL */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-md p-6 shadow-2xl relative">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-lg p-6 shadow-2xl relative flex flex-col max-h-[90vh]">
 
-            {/* Bezárás gomb */}
             <button
-              onClick={() => setIsModalOpen(false)}
+              onClick={() => { setIsModalOpen(false); setCart([]); }}
               className="absolute top-4 right-4 text-slate-400 hover:text-white transition-colors"
             >
               <X className="w-6 h-6" />
             </button>
 
-            <h2 className="text-2xl font-bold text-white mb-6">Új eladás rögzítése</h2>
+            <h2 className="text-2xl font-bold text-white mb-6 flex items-center gap-2">
+              <ShoppingCart className="w-6 h-6 text-blue-400" /> Új eladás rögzítése
+            </h2>
 
-            <form onSubmit={handleCreateSale} className="space-y-4">
-              {/* Product / Inventory Dropdown */}
-              <div>
-                <label className="block text-sm font-medium text-slate-300 mb-1">Termék kiválasztása</label>
+            {/* FELSŐ RÉSZ: Termék hozzáadása a kosárhoz */}
+            <div className="flex gap-2 items-end mb-6 p-4 bg-slate-800/50 rounded-xl border border-slate-700">
+              <div className="flex-1">
+                <label className="block text-xs font-medium text-slate-400 mb-1">Termék kiválasztása</label>
                 {loadingInventory ? (
-                  <div className="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-2 text-slate-400 animate-pulse">
-                    Termékek betöltése...
+                  <div className="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-400 animate-pulse">
+                    Betöltés...
                   </div>
                 ) : (
                   <select
-                    required
-                    value={newSale.inventoryId}
-                    onChange={(e) => setNewSale({ ...newSale, inventoryId: e.target.value })}
-                    className="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-blue-500"
+                    value={selectedItemToAdd}
+                    onChange={(e) => setSelectedItemToAdd(e.target.value)}
+                    className="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
                   >
                     <option value="" disabled>-- Válassz egy terméket --</option>
                     {inventory.map((item, idx) => (
                       <option key={idx} value={item.InventoryId}>
-                        {item.Brand} {item.Name} | {item.Stock} db raktáron ({item.Price} Ft)
+                        {item.Brand} {item.Name} ({item.Price} Ft)
                       </option>
                     ))}
                   </select>
                 )}
               </div>
-
-              {/* Mennyiség */}
-              <div>
-                <label className="block text-sm font-medium text-slate-300 mb-1">Mennyiség</label>
+              <div className="w-20">
+                <label className="block text-xs font-medium text-slate-400 mb-1">Db</label>
                 <input
-                  type="number"
-                  min="1"
-                  required
-                  value={newSale.quantity}
-                  onChange={(e) => setNewSale({ ...newSale, quantity: parseInt(e.target.value) })}
-                  className="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-blue-500"
+                  type="number" min="1"
+                  value={quantityToAdd}
+                  onChange={(e) => setQuantityToAdd(parseInt(e.target.value) || 1)}
+                  className="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
                 />
               </div>
+              <button
+                type="button"
+                onClick={handleAddToCart}
+                disabled={!selectedItemToAdd}
+                className="bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-lg text-sm font-bold transition-colors disabled:opacity-50"
+              >
+                Hozzáad
+              </button>
+            </div>
 
-              {/* Fizetési mód */}
-              <div>
+            {/* KÖZÉPSŐ RÉSZ: A Kosár tartalma */}
+            <div className="flex-1 overflow-y-auto mb-4 border-b border-t border-slate-800 py-4 min-h-[150px]">
+              {cart.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-full text-slate-500">
+                  <ShoppingCart className="w-8 h-8 mb-2 opacity-20" />
+                  <p className="text-sm">A kosár jelenleg üres.</p>
+                </div>
+              ) : (
+                <ul className="space-y-3">
+                  {cart.map((item, idx) => (
+                    <li key={idx} className="flex items-center justify-between bg-slate-800/30 p-3 rounded-lg border border-slate-700/50">
+                      <div>
+                        <p className="text-white font-medium text-sm">{item.name}</p>
+                        <p className="text-xs text-slate-400">{item.quantity} db x {item.price} Ft</p>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <span className="text-emerald-400 font-bold">{item.price * item.quantity} Ft</span>
+                        <button 
+                          onClick={() => handleRemoveFromCart(item.inventoryId)}
+                          className="text-slate-500 hover:text-red-400"
+                        >
+                          <X className="w-5 h-5" />
+                        </button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
+            {/* ALSÓ RÉSZ: Fizetés és Összegzés */}
+            <div className="flex items-end justify-between gap-4 mt-auto">
+              <div className="w-1/2">
                 <label className="block text-sm font-medium text-slate-300 mb-1">Fizetési mód</label>
                 <select
-                  value={newSale.paymentMethod}
-                  onChange={(e) => setNewSale({ ...newSale, paymentMethod: e.target.value })}
+                  value={paymentMethod}
+                  onChange={(e) => setPaymentMethod(e.target.value)}
                   className="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-blue-500"
                 >
                   <option value="Készpénz">Készpénz</option>
                   <option value="Bankkártya">Bankkártya</option>
                 </select>
               </div>
+              <div className="text-right flex-1">
+                <p className="text-slate-400 text-sm mb-1">Fizetendő:</p>
+                <p className="text-2xl font-extrabold text-white">{cartTotal.toLocaleString('hu-HU')} Ft</p>
+              </div>
+            </div>
 
-              {/* Submit Gomb */}
-              <button
-                type="submit"
-                className="w-full bg-blue-600 hover:bg-blue-500 text-white font-medium py-2.5 rounded-lg mt-4 transition-colors"
-              >
-                Eladás jóváhagyása
-              </button>
-            </form>
+            <button
+              onClick={handleCheckout}
+              disabled={cart.length === 0}
+              className="w-full bg-blue-600 hover:bg-blue-500 text-white font-medium py-3 rounded-lg mt-6 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-blue-500/20"
+            >
+              Fizetés Befejezése
+            </button>
 
           </div>
         </div>

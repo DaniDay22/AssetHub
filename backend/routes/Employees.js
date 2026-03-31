@@ -92,7 +92,7 @@ router.get('/List', authenticationToken, async (req, res) => {
 router.post('/Add', authenticationToken, async (req, res) => {
     let pool;
     try {
-        const { name, email, password, authLv, phone, doB, salary, storeId } = req.body;
+        const { name, email, password, authLv, phone, doB, salary, currency, storeId } = req.body;
         const creatorId = req.user.UserId;
         const creatorAuthLv = req.user.AuthLv;
 
@@ -138,11 +138,12 @@ router.post('/Add', authenticationToken, async (req, res) => {
             .input('Phone', mssql.NVarChar, phone)
             .input('DoB', mssql.Date, doB) 
             .input('Salary', mssql.Int, salary ? parseInt(salary) : null) 
+            .input('Currency', mssql.NVarChar, currency || 'HUF')
             .input('StoreId', mssql.Int, targetStoreId)
             .input('FranchiseId', mssql.Int, req.user.FranchiseId)
             .query(`
                 INSERT INTO Employee (Name, Email, Password, AuthLv, StoreId, Phone, DoB, HiredAt, Salary, FranchiseId, Currency, IsActive)
-                VALUES (@Name, @Email, @Password, @AuthLv, @StoreId, @Phone, @DoB, GETDATE(), @Salary, @FranchiseId, 'HUF', 1)
+                VALUES (@Name, @Email, @Password, @AuthLv, @StoreId, @Phone, @DoB, GETDATE(), @Salary, @FranchiseId, @Currency, 1)
             `);
 
         res.status(200).json({ success: true, message: "Dolgozó sikeresen hozzáadva!" });
@@ -192,7 +193,7 @@ router.put('/:id', authenticationToken, async (req, res) => {
     try {
         const targetId = req.params.id;
         const myAuthLv = req.user.AuthLv;
-        const { name, email, authLv, phone, doB, salary } = req.body;
+        const { name, email, authLv, phone, doB, salary, currency } = req.body;
 
         if (myAuthLv > 2) {
             return res.status(403).json({ success: false, error: "Nincs jogosultságod!" });
@@ -222,10 +223,11 @@ router.put('/:id', authenticationToken, async (req, res) => {
             .input('Phone', mssql.NVarChar, phone)
             .input('DoB', mssql.Date, doB)
             .input('Salary', mssql.Int, salary ? parseInt(salary) : null)
+            .input('Currency', mssql.NVarChar, currency || 'HUF')
             .query(`
                 UPDATE Employee 
                 SET Name = @Name, Email = @Email, AuthLv = @AuthLv, 
-                    Phone = @Phone, DoB = @DoB, Salary = @Salary
+                    Phone = @Phone, DoB = @DoB, Salary = @Salary, Currency = @Currency
                 WHERE Id = @TargetId 
                 AND FranchiseId = @MyFranchiseId
             `);
