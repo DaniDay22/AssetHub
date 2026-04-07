@@ -10,7 +10,7 @@ export default function EmployeesPage() {
   
   // Jogosultságok kiszámítása (Tulajdonos = 1, Üzletvezető = 2)
   const isManager = user?.AuthLvl === 2 || user?.AuthLv === 2;
-  const canEdit = isOwner || isManager;
+  const canEdit = isOwner || isManager; // Csak tulajdonos és üzletvezető szerkeszthet és törölhet alkalmazottakat
 
   const [employees, setEmployees] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -272,7 +272,7 @@ export default function EmployeesPage() {
                 {/* Gombok */}
                 <div className="flex items-start gap-4">
                   {/* Szerkesztés Gomb csak Owner és Manager számára */}
-                  {canEdit && (
+                  {canEdit && user.AuthLv <= emp.AuthLv && (
                     <button
                       onClick={() => openEditModal(emp)}
                       className="text-slate-500 hover:text-blue-400 transition-colors"
@@ -282,7 +282,7 @@ export default function EmployeesPage() {
                     </button>
                   )}
                   {/* Delete Gomb csak akkor ha nem az aktuális felhasználó, és ha a belépett felhasználó Owner vagy Manager */}
-                  {String(emp.Id) !== String(user?.UserId) && canEdit && (
+                  {String(emp.Id) !== String(user?.UserId) && canEdit && user.AuthLv <= emp.AuthLv && (
                     <button
                       onClick={() => handleDeleteEmployee(emp.Id)}
                       className="text-slate-500 hover:text-red-400 transition-colors"
