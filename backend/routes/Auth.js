@@ -5,6 +5,7 @@ const mssql = require('mssql')
 const config = require('../config')
 const bcrypt = require('bcrypt')
 const jwt = require('jsonwebtoken')
+const validator = require('validator')
 
 const jwt_secretKey = process.env.JWT_SECRET
 
@@ -30,11 +31,18 @@ const authenticationToken = (req, res, next) => {
 }
 
 router.put('/UpdateProfile', authenticationToken, async (req, res) => {
+    let pool;
     try {
         const userId = req.user.UserId;
         const { email, phone } = req.body;
 
-        const pool = await mssql.connect(config);
+        const emailFormatCheck = validator.isEmail(email)
+        const phoneFormatCheck = validator.isMobilePhone(phone)
+
+        if(!emailFormatCheck || !phoneFormatCheck)
+            return res.status(403).json({ success: false, error: "Nem megfelelő email vagy telefonszám formátum!" });
+
+        pool = await mssql.connect(config);
 
         // Megnézzük, hogy a megadott email cím nem foglalt-e már egy másik felhasználó által (kivéve saját magunkat)
         const emailCheck = await pool.request()
@@ -61,12 +69,20 @@ router.put('/UpdateProfile', authenticationToken, async (req, res) => {
 //Routes
 //Regisztráció Menedzserként (Boltot is felvesszük)
 router.post('/Register/Manager', async (req, res) => {
-    
     let pool; 
-    
     try {
         const {name, password, email, phone, dob, storeName, storeAddress} = req.body;
         const emailFormatted = email.toLowerCase().trim();
+
+        const emailFormatCheck = validator.isEmail(email)
+        const passwordFormatCheck = validator.isStrongPassword(password)
+        const phoneFormatCheck = validator.isMobilePhone(phone)
+
+        if(!emailFormatCheck || !phoneFormatCheck)
+            return res.status(403).json({ success: false, error: "Nem megfelelő email vagy telefonszám formátum!" });
+        if(!passwordFormatCheck)
+            return res.status(403).json({ success: false, error: `Nem elég erős a jelszava! A jelszónak 8 karakter hosszúnak kell lennie, és tartalmaznia kell: 
+        1 kisbetűt, 1 nagybetűt, 1 számot, 1 szimbólumot`});
 
         pool = await mssql.connect(config);
 
@@ -269,6 +285,11 @@ router.patch('/UpdatePassword', authenticationToken, async (req, res) => {
         if (!oldPassword || !newPassword) {
             return res.status(400).json({ success: false, error: "Kérlek add meg a jelenlegi és az új jelszót is!" });
         }
+
+        const passwordFormatCheck = validator.isStrongPassword(newPassword)
+        if(!passwordFormatCheck)
+            return res.status(403).json({ success: false, error: `Nem elég erős a jelszava! A jelszónak 8 karakter hosszúnak kell lennie, és tartalmaznia kell: 
+        1 kisbetűt, 1 nagybetűt, 1 számot, 1 szimbólumot`});
 
         pool = await mssql.connect(config);
 
