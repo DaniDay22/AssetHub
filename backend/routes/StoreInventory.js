@@ -125,7 +125,7 @@ router.get('/All', authenticationToken, async (req, res) => {
         const { AuthLv, FranchiseId, StoreId } = req.user;
 
         // Blokkoljuk az Eladókat(AuthLv == 4), mert nincs értelme, hogy ők itt legyenek
-        if (AuthLv == 4) {
+        if (AuthLv == 3) {
             return res.status(403).json({ success: false, error: "Ehhez a művelethez nincs jogosultságod!" });
         }
 
@@ -180,7 +180,7 @@ router.post('/', authenticationToken, async (req, res) => {
         const { PName, PCName, Brand, Unit, Price, Currency, Stock, Description, StoreId } = req.body
         const { AuthLv, UserId } = req.user //Tokenből infó
 
-        if (AuthLv == 4)
+        if (AuthLv == 3)
             return res.status(403).json({ success: false, error: "Ehhez a művelethez nincs jogosultságod!" });
 
         // Megnézzük, hogy a frontend küldött-e storeId-t. Ha igen, akkor azt használjuk, ha nem, akkor a tokenben lévő StoreId-t (ez az alapértelmezett boltja a dolgozónak).
@@ -258,7 +258,7 @@ router.put('/', authenticationToken, async (req, res) => {
         const { StoreInvId, ProductId, PName, PCName, Brand, Unit, Price, Currency, Stock, Description } = req.body;
         const AuthLv = req.user.AuthLv;
 
-        if (AuthLv == 4) return res.status(403).json({ success: false, error: "Nincs jogosultságod!" });
+        if (AuthLv == 3) return res.status(403).json({ success: false, error: "Nincs jogosultságod!" });
 
         pool = await mssql.connect(config);
         await pool.request()
@@ -350,7 +350,7 @@ router.delete('/', authenticationToken, async (req, res) => {
     let pool;
     try {
         const { StoreInvId, ProductId } = req.body;
-        if (req.user.AuthLv == 4) return res.status(403).json({ success: false, error: "Nincs jogosultságod!" });
+        if (req.user.AuthLv == 3) return res.status(403).json({ success: false, error: "Nincs jogosultságod!" });
 
         pool = await mssql.connect(config);
         await pool.request()

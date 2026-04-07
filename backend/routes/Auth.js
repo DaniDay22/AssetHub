@@ -239,7 +239,7 @@ router.post('/Login', async (req, res) => {
             
             if ( matches/*storedPass === password*/) { // Egyszerűsített ellenőrzés, csak teszteléshez!
                 const token = jwt.sign({
-                    UserId: user.Id, // Figyelj, hogy UserId vagy Id a kulcs!
+                    UserId: user.Id, 
                     AuthLv: user.AuthLv,
                     StoreId: user.StoreId,
                     FranchiseId: user.FranchiseId,

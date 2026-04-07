@@ -19,10 +19,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   const navItems = [
     { label: 'Alkalmazottak', icon: <Users size={24} />, href: '/dashboard/employees', roles: [1, 2] }, 
-    { label: 'Termékek', icon: <Package size={24} />, href: '/dashboard/product', roles: [1, 2] },
+    { label: 'Termékek', icon: <Package size={24} />, href: '/dashboard/product', roles: [1, 2, 4] },
     { label: 'Eladások', icon: <BarChart3 size={24} />, href: '/dashboard/sales', roles: [1, 2, 3] },
     { label: 'Boltok', icon: <Store size={24} />, href: '/dashboard/stores', roles: [1] },
-    { label: 'Fiók', icon: <User size={24} />, href: '/dashboard/account', roles: [1, 2, 3] },
+    { label: 'Fiók', icon: <User size={24} />, href: '/dashboard/account', roles: [1, 2, 3, 4] },
   ];
 
   const visibleItems = navItems.filter(item => {

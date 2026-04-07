@@ -179,6 +179,7 @@ export default function EmployeesPage() {
   const getAuthBadge = (level: number) => {
     if (level === 1) return <span className="text-xs font-bold text-red-400 uppercase tracking-wider block mb-1">Tulajdonos</span>;
     if (level <= 2) return <span className="text-xs font-bold text-purple-400 uppercase tracking-wider block mb-1">Üzletvezető</span>;
+    if (level === 4) return <span className="text-xs font-bold text-green-400 uppercase tracking-wider block mb-1">KÉSZLETKEZELŐ</span>;
     return <span className="text-xs font-bold text-blue-400 uppercase tracking-wider block mb-1">Eladó</span>;
   };
 
@@ -360,6 +361,7 @@ export default function EmployeesPage() {
                 >
                   <option value={3}>Eladó</option>
                   <option value={2}>Üzletvezető</option>
+                  <option value={4}>Készletkezelő</option>
                   <option value={1}>Tulajdonos</option>
                 </select>
               </div>

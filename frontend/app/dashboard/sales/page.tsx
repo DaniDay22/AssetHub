@@ -16,16 +16,19 @@ export default function SalesFeedPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [inventory, setInventory] = useState<any[]>([]);
   const [loadingInventory, setLoadingInventory] = useState(false);
-  
+
   // ==========================================
   // ÚJ: KOSÁR ÁLLAPOT (A Cart System)
   // ==========================================
   const [cart, setCart] = useState<{ inventoryId: number, name: string, price: number, quantity: number, maxStock: number }[]>([]);
   const [paymentMethod, setPaymentMethod] = useState('Készpénz');
-  
+
   // Ezek csak a modal felső lenyíló sávját és mennyiségét kezelik, amíg be nem kerül a kosárba.
   const [selectedItemToAdd, setSelectedItemToAdd] = useState('');
   const [quantityToAdd, setQuantityToAdd] = useState(1);
+
+  const [productSearch, setProductSearch] = useState('');
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
   // Eladások lekérése
   useEffect(() => {
@@ -115,7 +118,7 @@ export default function SalesFeedPage() {
   // ==========================================
   const handleAddToCart = () => {
     if (!selectedItemToAdd || quantityToAdd < 1) return;
-    
+
     // Megkeressük az eredeti terméket, hogy tudjuk a nevét, árát és max raktárkészletét.
     const product = inventory.find(i => i.InventoryId.toString() === selectedItemToAdd);
     if (!product) return;
@@ -123,11 +126,11 @@ export default function SalesFeedPage() {
     setCart(prevCart => {
       // Megnézzük, hogy benne van-e már a kosárban
       const existingItem = prevCart.find(item => item.inventoryId === product.InventoryId);
-      
+
       if (existingItem) {
         // Ha benne van, csak növeljük a mennyiséget (de nem engedjük a max készlet fölé)
         const newQuantity = Math.min(existingItem.quantity + quantityToAdd, product.Stock);
-        return prevCart.map(item => 
+        return prevCart.map(item =>
           item.inventoryId === product.InventoryId ? { ...item, quantity: newQuantity } : item
         );
       } else {
@@ -146,6 +149,7 @@ export default function SalesFeedPage() {
     // Reseteljük a lenyílót a következő termékhez
     setSelectedItemToAdd('');
     setQuantityToAdd(1);
+    setProductSearch('');
   };
 
   const handleRemoveFromCart = (inventoryId: number) => {
@@ -170,7 +174,7 @@ export default function SalesFeedPage() {
           'Authorization': `Bearer ${token}`
         },
         // Most az EGESZ kosarat átküldjük a backendnek egy tömbben!
-        body: JSON.stringify({ items: cart, paymentMethod }) 
+        body: JSON.stringify({ items: cart, paymentMethod })
       });
 
       const json = await res.json();
@@ -322,45 +326,86 @@ export default function SalesFeedPage() {
 
             {/* FELSŐ RÉSZ: Termék hozzáadása a kosárhoz */}
             <div className="flex gap-2 items-end mb-6 p-4 bg-slate-800/50 rounded-xl border border-slate-700">
-              <div className="flex-1">
+
+              {/* Kereshető Termék Combobox */}
+              <div className="flex-1 relative">
                 <label className="block text-xs font-medium text-slate-400 mb-1">Termék kiválasztása</label>
+
                 {loadingInventory ? (
                   <div className="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-400 animate-pulse">
                     Betöltés...
                   </div>
                 ) : (
-                  <select
-                    value={selectedItemToAdd}
-                    onChange={(e) => setSelectedItemToAdd(e.target.value)}
-                    className="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
-                  >
-                    <option value="" disabled>-- Válassz egy terméket --</option>
-                    {inventory.map((item, idx) => (
-                      <option key={idx} value={item.InventoryId}>
-                        {item.Brand} {item.Name} ({item.Price} Ft)
-                      </option>
-                    ))}
-                  </select>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      placeholder="Keresés termékre vagy márkára..."
+                      value={productSearch}
+                      onChange={(e) => {
+                        setProductSearch(e.target.value);
+                        setSelectedItemToAdd('');
+                        setIsDropdownOpen(true);
+                      }}
+                      onFocus={() => setIsDropdownOpen(true)}
+                      onBlur={() => setIsDropdownOpen(false)}
+                      className="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+                    />
+
+                    {/* Lenyíló lista */}
+                    {isDropdownOpen && (
+                      <ul className="absolute z-50 w-full mt-1 bg-slate-800 border border-slate-600 rounded-lg max-h-48 overflow-y-auto shadow-2xl">
+                        {inventory
+                          .filter(item => `${item.Brand} ${item.Name}`.toLowerCase().includes(productSearch.toLowerCase()))
+                          .map(item => (
+                            <li
+                              key={item.InventoryId}
+                              onMouseDown={(e) => {
+                                e.preventDefault();
+                                setSelectedItemToAdd(item.InventoryId.toString());
+                                setProductSearch(`${item.Brand} ${item.Name}`);
+                                setIsDropdownOpen(false);
+                              }}
+                              className="px-3 py-2 hover:bg-blue-600 cursor-pointer text-sm text-white border-b border-slate-700/50 last:border-0 transition-colors"
+                            >
+                              <div className="font-bold">{item.Brand} {item.Name}</div>
+                              <div className="text-xs text-slate-300 flex justify-between mt-0.5">
+                                <span>{item.Price} Ft</span>
+                                <span className="text-blue-300">{item.Stock} db raktáron</span>
+                              </div>
+                            </li>
+                          ))}
+
+                        {inventory.filter(item => `${item.Brand} ${item.Name}`.toLowerCase().includes(productSearch.toLowerCase())).length === 0 && (
+                          <li className="px-3 py-3 text-sm text-slate-400 text-center">Nincs a keresésnek megfelelő termék.</li>
+                        )}
+                      </ul>
+                    )}
+                  </div>
                 )}
               </div>
+
+              {/* A TE KÓDOD: Mennyiség (Db) */}
               <div className="w-20">
                 <label className="block text-xs font-medium text-slate-400 mb-1">Db</label>
                 <input
                   type="number" min="1"
                   value={quantityToAdd}
                   onChange={(e) => setQuantityToAdd(parseInt(e.target.value) || 1)}
-                  className="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
+                  className="flex w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500"
                 />
               </div>
+
+              {/* A TE KÓDOD: Hozzáad gomb */}
               <button
                 type="button"
                 onClick={handleAddToCart}
                 disabled={!selectedItemToAdd}
-                className="bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-lg text-sm font-bold transition-colors disabled:opacity-50"
+                className="flex bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-lg text-sm font-bold transition-colors disabled:opacity-50 h-[38px] items-center"
               >
                 Hozzáad
               </button>
             </div>
+
 
             {/* KÖZÉPSŐ RÉSZ: A Kosár tartalma */}
             <div className="flex-1 overflow-y-auto mb-4 border-b border-t border-slate-800 py-4 min-h-[150px]">
@@ -379,7 +424,7 @@ export default function SalesFeedPage() {
                       </div>
                       <div className="flex items-center gap-4">
                         <span className="text-emerald-400 font-bold">{item.price * item.quantity} Ft</span>
-                        <button 
+                        <button
                           onClick={() => handleRemoveFromCart(item.inventoryId)}
                           className="text-slate-500 hover:text-red-400"
                         >

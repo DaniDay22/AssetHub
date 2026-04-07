@@ -106,6 +106,7 @@ export default function AccountPage() {
   const getRoleName = (level: number) => {
     if (level === 1) return 'Tulajdonos';
     if (level === 2) return 'Üzletvezető';
+    if (level === 4) return 'Készletkezelő';
     return 'Eladó';
   };
 
