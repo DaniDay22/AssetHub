@@ -8,7 +8,7 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Form State matching your Backend expectations
+  // A regisztrációs űrlap adatainak kezelése egy közös state-ben, hogy könnyebben lehessen validálni és elküldeni az adatokat.
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -23,9 +23,40 @@ export default function RegisterPage() {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
+  // VALIDÁCIÓS FÜGGVÉNY
+  const validateForm = () => {
+    // E-mail validáció (alapvető e-mail formátum ellenőrzése)
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(formData.email)) {
+      return "Kérjük, adj meg egy érvényes e-mail címet!";
+    }
+
+    // Telefonszám validáció (Opcionális '+', számok, szóközök és kötőjelek engedélyezettek, 8-15 karakter)
+    const phoneRegex = /^\+?[0-9\s\-]{8,15}$/;
+    if (!phoneRegex.test(formData.phone)) {
+      return "Kérjük, adj meg egy érvényes telefonszámot (pl. +36 30 123 4567)!";
+    }
+
+    // Jelszó validáció (Min 8 karakter, 1 kisbetű, 1 nagybetű, 1 szám, 1 speciális karakter)
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
+    if (!passwordRegex.test(formData.password)) {
+      return "A jelszónak legalább 8 karakter hosszúnak kell lennie, és tartalmaznia kell kisbetűt, nagybetűt, számot és speciális karaktert (@$!%*?&)!";
+    }
+
+    return null; // Ha minden rendben, nem térünk vissza hibával
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+
+    // --- VALIDÁCIÓ FUTTATÁSA ---
+    const validationError = validateForm();
+    if (validationError) {
+      setError(validationError);
+      return; // Ha hiba van, azonnal megállítjuk a folyamatot, nem küldjük el a backendnek
+    }
+
     setLoading(true);
 
     try {
@@ -39,7 +70,7 @@ export default function RegisterPage() {
 
       if (res.ok && data.success) {
         alert("Sikeres regisztráció! Kérjük, jelentkezz be.");
-        router.push('/auth/login'); // Changed to match your anchor tag below
+        router.push('/auth/login');
       } else {
         setError(data.error || "A regisztráció sikertelen volt.");
       }
@@ -73,14 +104,14 @@ export default function RegisterPage() {
 
           <form className="space-y-5" onSubmit={handleSubmit}>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-              {/* Personal Info */}
+              {/* Személyes Adatok */}
               <div className="space-y-5">
                 <InputGroup label="Teljes Név" icon={<User size={18}/>} name="name" type="text" placeholder="Kovács János" value={formData.name} onChange={handleChange} />
                 <InputGroup label="Munkahelyi E-mail" icon={<Mail size={18}/>} name="email" type="email" placeholder="janos@cegnev.hu" value={formData.email} onChange={handleChange} />
                 <InputGroup label="Telefonszám" icon={<Phone size={18}/>} name="phone" type="tel" placeholder="+36 30 123 4567" value={formData.phone} onChange={handleChange} />
               </div>
 
-              {/* Store & Security Info */}
+              {/* Bolt Információk */}
               <div className="space-y-5">
                 <InputGroup label="Cégnév / Bolt neve" icon={<Building2 size={18}/>} name="storeName" type="text" placeholder="Példa Kft." value={formData.storeName} onChange={handleChange} />
                 <InputGroup label="Bolt Címe" icon={<MapPin size={18}/>} name="storeAddress" type="text" placeholder="1051 Budapest, Fő utca 1." value={formData.storeAddress} onChange={handleChange} />
@@ -89,6 +120,7 @@ export default function RegisterPage() {
             </div>
 
             <InputGroup label="Jelszó" icon={<Lock size={18}/>} name="password" type="password" placeholder="••••••••" value={formData.password} onChange={handleChange} />
+            <p className="text-xs text-slate-500 mt-1">Min. 8 karakter, kis- és nagybetű, szám, speciális karakter.</p>
 
             <button
               type="submit"
@@ -101,7 +133,7 @@ export default function RegisterPage() {
 
           <div className="mt-8 text-center">
             <p className="text-sm text-slate-400">
-              Már van fiókod? <a href="/login" className="font-medium text-blue-400 hover:text-blue-300">Jelentkezz be</a>
+              Már van fiókod? <a href="/auth/login" className="font-medium text-blue-400 hover:text-blue-300">Jelentkezz be</a>
             </p>
           </div>
         </div>
@@ -110,7 +142,7 @@ export default function RegisterPage() {
   );
 }
 
-// Helper component for cleaner code
+// Segédfüggvény az input mezőkhöz, hogy ne kelljen minden mezőnél újraírni a hasonló JSX-et
 function InputGroup({ label, icon, ...props }: any) {
   return (
     <div>

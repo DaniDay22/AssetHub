@@ -4,7 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { User, Mail, Phone, Shield, Building2, Save, Loader2, KeyRound, X } from 'lucide-react';
 
 export default function AccountPage() {
-  const { user } = useAuth(); // Az AuthContext-ból lekérjük a bejelentkezett felhasználó adatait, hogy megjeleníthessük és szerkeszthessük azokat a fiókbeállítások oldalon.
+  const { user } = useAuth(); // Az AuthContext-ból lekérjük a bejelentkezett felhasználó adatait
   
   const [formData, setFormData] = useState({
     email: '',
@@ -24,7 +24,6 @@ export default function AccountPage() {
   const [passLoading, setPassLoading] = useState(false);
   const [passMessage, setPassMessage] = useState({ text: '', type: '' });
 
-  // Szinkronizáljuk a formData-t a user adataival, amikor a user betöltődik vagy frissül, hogy a form mindig a legfrissebb adatokat mutassa.
   useEffect(() => {
     if (user) {
       setFormData({
@@ -72,6 +71,15 @@ export default function AccountPage() {
       return setPassMessage({ text: 'Az új jelszavak nem egyeznek!', type: 'error' });
     }
 
+    // JELSZÓ ERŐSSÉG VALIDÁCIÓ
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
+    if (!passwordRegex.test(passwordData.newPassword)) {
+      return setPassMessage({ 
+        text: 'Az új jelszónak legalább 8 karakter hosszúnak kell lennie, és tartalmaznia kell kisbetűt, nagybetűt, számot és speciális karaktert (@$!%*?&)!', 
+        type: 'error' 
+      });
+    }
+
     setPassLoading(true);
     try {
       const token = localStorage.getItem('token');
@@ -92,7 +100,7 @@ export default function AccountPage() {
       if (json.success) {
         setPassMessage({ text: 'Jelszó sikeresen megváltoztatva!', type: 'success' });
         setPasswordData({ oldPassword: '', newPassword: '', confirmPassword: '' });
-        setTimeout(() => setIsPasswordModalOpen(false), 2000); // Bezárjuk a modalt 2 másodperc múlva, hogy a felhasználó lássa a sikerüzenetet.
+        setTimeout(() => setIsPasswordModalOpen(false), 2000); 
       } else {
         setPassMessage({ text: json.error || 'Hiba történt.', type: 'error' });
       }
@@ -263,16 +271,18 @@ export default function AccountPage() {
               <div>
                 <label className="block text-sm font-medium text-slate-300 mb-1">Új jelszó</label>
                 <input 
-                  type="password" required minLength={6}
+                  type="password" required minLength={8}
                   value={passwordData.newPassword} 
                   onChange={(e) => setPasswordData({...passwordData, newPassword: e.target.value})} 
                   className="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-blue-500" 
                 />
+                {/* HELPER SZÖVEG*/}
+                <p className="text-xs text-slate-500 mt-1">Min. 8 karakter, kis- és nagybetű, szám, speciális karakter.</p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-300 mb-1">Új jelszó megerősítése</label>
                 <input 
-                  type="password" required minLength={6}
+                  type="password" required minLength={8}
                   value={passwordData.confirmPassword} 
                   onChange={(e) => setPasswordData({...passwordData, confirmPassword: e.target.value})} 
                   className="w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-blue-500" 

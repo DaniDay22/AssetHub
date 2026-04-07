@@ -25,12 +25,11 @@ export default function LoginPage() {
       const data = await res.json();
 
       if (res.ok && data.success) {
-        // We pass the token to your AuthContext
-        // Pro tip: You might also want to pass data.user if your Context stores user info
+        // A login függvény meghívása a Context-ben, hogy frissítsük a bejelentkezett állapotot és a token-t.
         login(data.token); 
         document.cookie = `token=${data.token}; path=/; max-age=${60 * 60 * 2}; SameSite=Lax`;
       } else {
-        // Displays "Hibás adatok!" or whatever the server sends
+        // Ha a válasz nem ok és van egy error üzenet, azt jelenítjük meg, különben egy általános hibaüzenetet.
         setError(data.error || 'A bejelentkezés sikertelen volt');
       }
     } catch (err) {
@@ -42,7 +41,7 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen bg-[#020617] text-slate-200 flex flex-col justify-center py-12 px-6 lg:px-8 relative overflow-hidden font-sans">
-      {/* Background Glow */}
+      {/* Háttér fény */}
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-blue-600/10 blur-[120px] rounded-full -z-10" />
 
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
@@ -60,10 +59,9 @@ export default function LoginPage() {
       <div className="mt-10 sm:mx-auto sm:w-full sm:max-w-md">
         <div className="bg-slate-900/50 border border-slate-800 py-8 px-6 shadow-2xl rounded-2xl sm:px-10 backdrop-blur-sm">
           
-          {/* Form now calls handleSubmit */}
           <form className="space-y-6" onSubmit={handleSubmit}>
             
-            {/* Error Message Display */}
+            {/* Error üzenet */}
             {error && (
               <div className="bg-red-500/10 border border-red-500/50 text-red-400 px-4 py-2 rounded-lg text-sm">
                 {error}
