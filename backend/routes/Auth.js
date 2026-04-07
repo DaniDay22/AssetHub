@@ -75,14 +75,17 @@ router.post('/Register/Manager', async (req, res) => {
         const emailFormatted = email.toLowerCase().trim();
 
         const emailFormatCheck = validator.isEmail(email)
-        const passwordFormatCheck = validator.isStrongPassword(password)
         const phoneFormatCheck = validator.isMobilePhone(phone)
+        const passwordFormatCheck = validator.isStrongPassword(password)
+        const postalcodeExists = validator.isPostalCode(storeAddress.split(' ')[0], "any") //Avagy: vegyük ki az irányítószám
 
         if(!emailFormatCheck || !phoneFormatCheck)
             return res.status(403).json({ success: false, error: "Nem megfelelő email vagy telefonszám formátum!" });
         if(!passwordFormatCheck)
             return res.status(403).json({ success: false, error: `Nem elég erős a jelszava! A jelszónak 8 karakter hosszúnak kell lennie, és tartalmaznia kell: 
         1 kisbetűt, 1 nagybetűt, 1 számot, 1 szimbólumot`});
+        if(!postalcodeExists)
+            return res.status(403).json({ success: false, error: "Nem megfelelő a cím formátum! Kérem, az irányítószámmal kezdjen, majd a várossal, majd az utca címmel!" });
 
         pool = await mssql.connect(config);
 
