@@ -15,7 +15,7 @@ export default function Footer(){
   return (
     <footer className="mt-auto px-6 py-8 border-t border-slate-900 text-center bg-[#020617]">
         <div className="flex items-center justify-center gap-2 mb-4">
-          <Image src="/AssetHub-logo.png" alt="AssetHub Logo" className="w-auto m-auto" 
+          <Image src="/AssetHub-logo.PNG" alt="AssetHub Logo" className="w-auto m-auto" 
                 width={30}
                 height={24} 
           />

@@ -41,7 +41,7 @@ export default function Navbar() {
         {/* Középső Oszlop: Logo & Brand */}
         <div className="flex justify-center items-center">
           <Link href="/" className="flex flex-col items-center justify-center gap-1 hover:opacity-90 transition-opacity">
-            <Image src="/AssetHub-logo.png" alt="AssetHub Logo" width={40} height={40} className="" />
+            <Image src="/AssetHub-logo.PNG" alt="AssetHub Logo" width={40} height={40} className="" />
             <span className="text-xl font-extrabold text-white tracking-tight">Asset<span className="text-blue-500">Hub</span></span>
           </Link>
         </div>
@@ -71,7 +71,7 @@ export default function Navbar() {
       {/* MOBILE NAVBAR  */}
       <nav className="md:hidden flex justify-between items-center px-6 h-20">
         <Link href="/" className="flex items-center gap-3 text-white" onClick={() => setIsMobileMenuOpen(false)}>
-          <Image src="/AssetHub-logo.png" alt="AssetHub Logo" width={32} height={32} className="" />
+          <Image src="/AssetHub-logo.PNG" alt="AssetHub Logo" width={32} height={32} className="" />
           <span className="text-xl font-extrabold text-white tracking-tight">Asset<span className="text-blue-500">Hub</span></span>
         </Link>
         
