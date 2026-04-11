@@ -100,7 +100,7 @@ export default function LandingPage() {
               <ul className="space-y-4 relative z-10">
                 <ComparisonItem good text="Letisztult, modern digitális felület" />
                 <ComparisonItem good text="Automatikus vonalkód és CSV feltöltés" />
-                <ComparisonItem good text="Azonnali riasztások készlethiány esetén" />
+                <ComparisonItem good text="Külön szerepkörök és jogosultságok minden alkalmazott számára" />
                 <ComparisonItem good text="Bárhonnan ellenőrizheted az üzleted állását" />
               </ul>
             </div>

@@ -102,15 +102,7 @@ export default function LoginPage() {
               </div>
             </div>
 
-            <div className="flex items-center justify-between">
-              <div className="flex items-center text-sm">
-                <input type="checkbox" className="h-4 w-4 rounded border-slate-800 bg-slate-950 text-blue-500 focus:ring-blue-500/50" />
-                <label className="ml-2 text-slate-400">Emlékezz rám</label>
-              </div>
-              <div className="text-sm">
-                <a href="#" className="font-medium text-blue-400 hover:text-blue-300">Elfelejtetted a jelszavad?</a>
-              </div>
-            </div>
+            
 
             <button
               type="submit"
