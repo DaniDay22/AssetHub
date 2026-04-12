@@ -5,8 +5,10 @@
   <li>Baranyi-Bujdosó Gergő (alias: baranyi-bujdoso-gergo)</li>
 </ul>
 <h2>Rövid ismertető</h2>
-<p></p>
-<p></p>
+<p>AssetHub egy könnyen kezelhető és bővíthető áruház- és boltlánc kezelő program/web felület, amit NodeJs és NextJs segítségével
+hoztunk létre</p>
+<p>Célja az volt, hogy modernizáljuk a már elavult bolti adminisztrációs felületeket és egyesítsünk több funkciót, amihez
+több programra lenne szükség.</p>
 <h2>Munkamegosztás</h2>
 <ul>
   <li>Princz Dániel Olivér: Backend fő részei, API készítése, Tervezői grafikonok</li>
